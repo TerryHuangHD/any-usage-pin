@@ -72,7 +72,7 @@ The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppIn
 3. Choose the upper/lower row's text and bar windows independently.
 4. Review the preview, finish editing, then click **Apply / 套用** to save.
 
-The app has no Dock icon. With no pins, an app launcher provides the menu bar entry; once you add pins, any pin opens the dashboard. Escape, closing the panel, or switching apps hides the panel without stopping polling. Quit through settings or a status item's right-click menu.
+The app has no Dock icon. With no pins, an app launcher provides the menu bar entry; once you add pins, any pin opens the dashboard. The dashboard hides the native macOS title and close, minimize, and zoom buttons while remaining draggable and resizable. Escape, the dashboard's own close action, clicking outside, or switching apps hides the panel without stopping polling. Quit through settings or a status item's right-click menu.
 
 **OMP not found when launched from Finder?** Set its full executable path in the gear settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
 

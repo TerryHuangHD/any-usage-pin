@@ -125,6 +125,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       styleMask: [.titled, .closable, .resizable],
       backing: .buffered, defer: false)
     panel.title = "AnyUsagePin"
+    panel.titleVisibility = .hidden
     panel.isReleasedWhenClosed = false
     panel.isFloatingPanel = true
     panel.becomesKeyOnlyIfNeeded = false
@@ -137,6 +138,9 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     mainFlutterWindow = panel
     panel.contentViewController = controller
     panel.setContentSize(NSSize(width: 620, height: 680))
+    for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+      panel.standardWindowButton(button)?.isHidden = true
+    }
     installObservers()
     if !engine.run(withEntrypoint: nil) {
       let alert = NSAlert()
