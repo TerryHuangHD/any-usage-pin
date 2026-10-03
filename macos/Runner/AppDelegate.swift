@@ -714,6 +714,12 @@ private struct StatusPin: Equatable {
     self.status = pinStatus
     self.layers = layers
   }
+
+  func hasSameArtwork(as other: StatusPin) -> Bool {
+    provider == other.provider && showIcon == other.showIcon &&
+      label == other.label && labelWidth == other.labelWidth &&
+      color == other.color && status == other.status && layers == other.layers
+  }
 }
 
 @main
@@ -723,8 +729,8 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   private var panel: UsagePanel?
   private var usageController: UsagePanelController?
   private var settingsWindow: NSWindow?
-  private var launcher: NSStatusItem?
-  private var pinItems: [String: NSStatusItem] = [:]
+  private var statusItem: NSStatusItem?
+  private var pinArtwork: [String: (pin: StatusPin, image: NSImage)] = [:]
   private var pins: [StatusPin] = []
   private weak var anchorButton: NSStatusBarButton?
   private var localMonitor: Any?
@@ -739,7 +745,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     NSApp.setActivationPolicy(.accessory)
     mainFlutterWindow?.orderOut(nil)
     mainFlutterWindow?.close()
-    createLauncher()
+    createStatusItem()
 
     let engine = FlutterEngine(
       name: "AnyUsagePin", project: nil, allowHeadlessExecution: true)
@@ -875,9 +881,10 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     }
   }
 
-  private func createLauncher() {
+  private func createStatusItem() {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    launcher = item
+    statusItem = item
+    item.isVisible = true
     if let button = item.button {
       button.image = StatusArtwork.launcherImage
       button.image?.isTemplate = true
@@ -894,50 +901,54 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   }
 
   private func updatePins(_ newPins: [StatusPin]) {
-    let oldPins = pins
-    launcher?.isVisible = newPins.isEmpty
-    if oldPins.map(\.id) != newPins.map(\.id) {
-      anchorButton = nil
-      for item in pinItems.values { NSStatusBar.system.removeStatusItem(item) }
-      pinItems.removeAll(keepingCapacity: true)
-      // New AppKit items appear to the left of existing items. Reverse creation
-      // keeps the explicit pin sequence left-to-right.
-      for pin in newPins.reversed() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        pinItems[pin.id] = item
-        if let button = item.button { configureButton(button) }
+    guard pins != newPins else { return }
+    let orderChanged = !pins.elementsEqual(newPins, by: { $0.id == $1.id })
+    if orderChanged {
+      let ids = Set(newPins.map(\.id))
+      for pin in pins where !ids.contains(pin.id) {
+        pinArtwork.removeValue(forKey: pin.id)
       }
-      pins = newPins
-      redrawPins()
-      return
     }
     pins = newPins
-    for (old, new) in zip(oldPins, newPins) where old != new {
-      let redraw = old.provider != new.provider ||
-        old.showIcon != new.showIcon || old.label != new.label ||
-        old.labelWidth != new.labelWidth || old.color != new.color ||
-        old.status != new.status || old.layers != new.layers
-      render(new, redraw: redraw)
-    }
+    renderPins(redraw: orderChanged)
   }
 
   private func redrawPins() {
-    for pin in pins { render(pin) }
+    pinArtwork.removeAll(keepingCapacity: true)
+    renderPins(redraw: true)
   }
 
-  private func render(_ pin: StatusPin, redraw: Bool = true) {
-    guard let item = pinItems[pin.id], let button = item.button else { return }
-    if redraw || button.image == nil {
-      button.effectiveAppearance.performAsCurrentDrawingAppearance {
-        let image = StatusArtwork.image(for: pin)
+  private func renderPins(redraw: Bool) {
+    guard let item = statusItem, let button = item.button else { return }
+    if pins.isEmpty {
+      item.length = NSStatusItem.squareLength
+      button.image = StatusArtwork.launcherImage
+      button.toolTip = "AnyUsagePin"
+      button.setAccessibilityLabel("Open AnyUsagePin")
+      button.setAccessibilityValue(nil)
+      return
+    }
+    button.effectiveAppearance.performAsCurrentDrawingAppearance {
+      var needsRedraw = redraw || button.image == nil
+      for pin in pins {
+        if let cached = pinArtwork[pin.id], pin.hasSameArtwork(as: cached.pin) { continue }
+        pinArtwork[pin.id] = (pin, StatusArtwork.image(for: pin))
+        needsRedraw = true
+      }
+      if needsRedraw {
+        let automaticColor: NSColor = button.effectiveAppearance.bestMatch(
+          from: [.aqua, .darkAqua]) == .darkAqua ? .white : .black
+        let image = StatusArtwork.image(
+          for: pins, artwork: pinArtwork, automaticColor: automaticColor)
         item.length = image.size.width
         button.image = image
         button.imagePosition = .imageOnly
       }
     }
-    button.toolTip = pin.tooltip
-    button.setAccessibilityLabel(pin.title)
-    button.setAccessibilityValue(pin.tooltip)
+    let tooltip = pins.map(\.tooltip).joined(separator: "\n\n")
+    button.toolTip = tooltip
+    button.setAccessibilityLabel(pins.map(\.title).joined(separator: ", "))
+    button.setAccessibilityValue(tooltip)
   }
 
   @objc private func statusClicked(_ sender: NSStatusBarButton) {
@@ -988,8 +999,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   }
 
   private func positionPanel(_ panel: NSPanel) {
-    let defaultButton = pins.first.flatMap { pinItems[$0.id]?.button } ?? launcher?.button
-    let button = anchorButton ?? defaultButton
+    let button = anchorButton ?? statusItem?.button
     let screen = button?.window?.screen ?? NSScreen.main
     guard let screen = screen else { panel.center(); return }
     let visible = screen.visibleFrame
@@ -1150,6 +1160,38 @@ private enum StatusArtwork {
       srgbRed: CGFloat((rgb >> 16) & 255) / 255,
       green: CGFloat((rgb >> 8) & 255) / 255,
       blue: CGFloat(rgb & 255) / 255, alpha: 1)
+  }
+
+  static func image(
+    for pins: [StatusPin], artwork: [String: (pin: StatusPin, image: NSImage)],
+    automaticColor: NSColor
+  ) -> NSImage {
+    let gap: CGFloat = 4
+    var width: CGFloat = 0
+    var isTemplate = true
+    for pin in pins {
+      guard let image = artwork[pin.id]?.image else { continue }
+      width += image.size.width
+      isTemplate = isTemplate && image.isTemplate
+    }
+    width += CGFloat(max(0, pins.count - 1)) * gap
+    let image = NSImage(size: NSSize(width: width, height: 22))
+    image.lockFocus()
+    var x: CGFloat = 0
+    for pin in pins {
+      guard let pinImage = artwork[pin.id]?.image else { continue }
+      let rect = NSRect(x: x, y: 0, width: pinImage.size.width, height: 22)
+      pinImage.draw(in: rect)
+      if !isTemplate && pinImage.isTemplate {
+        // Mixed custom colors cannot use a single template tint.
+        automaticColor.setFill()
+        rect.fill(using: .sourceAtop)
+      }
+      x += pinImage.size.width + gap
+    }
+    image.unlockFocus()
+    image.isTemplate = isTemplate
+    return image
   }
 
   static func image(for pin: StatusPin) -> NSImage {

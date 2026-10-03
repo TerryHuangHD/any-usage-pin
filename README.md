@@ -19,7 +19,7 @@ Your coding agent is already where your accounts live. AnyUsagePin starts there�
 An account signed in to OMP can appear here even if it is not signed in to that provider's desktop app, provided OMP exposes its usage. Work and personal accounts stay separate, including two subscriptions from the same provider.
 
 - **Account-first, not provider averages.** Each account and organization/project scope keeps its own quota and identity.
-- **Pin what matters.** Keep several subscriptions in the menu bar, with up to two rows per pin. No automatic account selection or quota-based reshuffling.
+- **Pin what matters.** Keep several subscriptions together in one menu bar item, with up to two rows per pin. No automatic account selection or quota-based reshuffling.
 - **Mix text and bars freely.** Pair a countdown bar with remaining quota text—or quota bars with countdown text. Each channel can use a different window.
 - **Choose your dashboard.** Switch between account cards, a compact table, and a pinned-account focus view, with system/light/dark themes and adjustable density.
 - **Know when data is uncertain.** Missing values, expired resets, and failed queries remain visible instead of becoming reassuring zeroes.
@@ -72,7 +72,7 @@ The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppIn
 3. Choose the upper/lower row's text and bar windows independently.
 4. Review the preview, finish editing, then click **Apply / 套用** to save.
 
-The app has no Dock icon. With no pins, an app launcher provides the menu bar entry; once you add pins, any pin opens the usage panel. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its fixed footer provides manual refresh, snapshot/query status, and a settings button. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
+The app has no Dock icon. All configured pins share one menu bar item, displayed side by side in their configured order. Clicking anywhere in the group opens the usage panel; with no pins, the same item shows the app launcher. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its fixed footer provides manual refresh, snapshot/query status, and a settings button. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
 
 Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…**.
 
@@ -112,9 +112,9 @@ remaining-time ratio = time until reset / source-reported window duration
 
 It updates on the existing 30-second clock. Missing reset times or window durations produce an outlined `?` bar, not a fabricated 0%. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
 
-There is no fixed product-level pin limit. macOS decides which status items fit; the app does not collapse, merge, replace, or reorder them automatically. All configured pins remain manageable in Customize.
+There is no fixed product-level pin limit. macOS decides whether the combined menu bar item fits; a wide group may be hidden when menu bar space is insufficient. The app does not drop, collapse, replace, or reorder pins automatically. All configured pins remain manageable in Customize.
 
-Official provider logos identify subscriptions. Automatic menu bar color uses AppKit template tint, independently of the app's light/dark theme; custom colors remain available.
+Official provider logos identify subscriptions. Automatic colors follow the menu bar's appearance, independently of the app's light/dark theme; each pin retains its custom color when mixed with automatic-color pins.
 
 ## Supported agents
 
@@ -208,7 +208,7 @@ Display preferences use schema v2; normalized usage snapshots retain schema v1. 
 
 ## Development and contributing
 
-The [Flutter layer](lib/) owns one usage controller, settings/customization, previews, polling, and normalized data. The [Swift/AppKit layer](macos/Runner/) renders native status items and the read-only usage panel from controller projections, and hosts the single Flutter engine in a separate retained settings window. Panel dismissal is scoped to the panel, not the settings window. Brand assets are bundled; the app does not fetch provider icons at runtime.
+The [Flutter layer](lib/) owns one usage controller, settings/customization, previews, polling, and normalized data. The [Swift/AppKit layer](macos/Runner/) renders one native status item containing all pins and the read-only usage panel from controller projections, and hosts the single Flutter engine in a separate retained settings window. Panel dismissal is scoped to the panel, not the settings window. Brand assets are bundled; the app does not fetch provider icons at runtime.
 
 ```sh
 flutter analyze
