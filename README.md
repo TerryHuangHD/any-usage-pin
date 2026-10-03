@@ -29,9 +29,9 @@ An account signed in to OMP can appear here even if it is not signed in to that 
 
 ### Install the macOS app
 
-**Current release: [AnyUsagePin 1.0.1](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.0.1) (build 2).** Includes grouped menu bar pins, separate glass usage and settings windows, optional launch at login, and a configurable 1–10 minute refresh interval.
+**Current release: [AnyUsagePin 1.0.2](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.0.2) (build 3).** Adds Sparkle in-app updates and panel version notices, alongside grouped menu bar pins, separate glass usage and settings windows, optional launch at login, and a configurable 1–10 minute refresh interval.
 
-1. Download the **macOS universal DMG** and `SHA256SUMS` from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest).
+1. Download the **macOS universal DMG** from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest). For checksum verification, also download `appcast.xml` and `SHA256SUMS` into the same directory and run `shasum -a 256 -c SHA256SUMS`.
 2. Open the DMG and drag **AnyUsagePin.app** to **Applications**.
 3. Open AnyUsagePin from Applications. It runs in the menu bar, not the Dock.
 
@@ -91,13 +91,13 @@ Avoid running Debug and Release together: they use the same local settings.
 
 ### In-app updates
 
-Source version **1.0.2 (build 3)** adds [Sparkle 2](https://sparkle-project.org/) updates. Published 1.0.0 / 1.0.1 apps do not contain an updater; install a Sparkle-enabled release manually once before using in-app updates.
+Starting with **1.0.2 (build 3)**, releases include [Sparkle 2](https://sparkle-project.org/) updates. Published 1.0.0 / 1.0.1 apps do not contain an updater; install 1.0.2 or a later release manually once before using in-app updates.
 
 The app queries update information on launch and whenever the usage panel opens, merging overlapping checks. Background checks do not interrupt startup or open an update dialog. The panel shows **新版 … 可用 / 下載更新** when a compatible, non-skipped update is available. Clicking the button opens Sparkle's standard download, verification, installation, and relaunch flow. No automatic installation is enabled.
 
 The panel distinguishes a failed query (**無法確認最新版本**) from no installable update (**沒有可安裝的更新**); the latter also covers skipped or system-incompatible versions, not just being on the latest version. The right-click **Check for Updates…** action is user-initiated and can rediscover a skipped version. Sparkle's automatic-check preference is respected.
 
-The fixed feed is [`appcast.xml` on GitHub Pages](https://terryhuanghd.github.io/any-usage-pin/appcast.xml); update archives come from GitHub Releases. The endpoint becomes available after the first Sparkle-enabled release and publishing workflow are deployed. Until then, update queries report failure without affecting quota display.
+The fixed feed is [`appcast.xml` on GitHub Pages](https://terryhuanghd.github.io/any-usage-pin/appcast.xml); update archives come from GitHub Releases. Update queries and downloads use HTTPS, and a failed query does not affect quota display.
 
 ## Make the menu bar yours
 
@@ -278,14 +278,14 @@ For each stable release:
 
 The [publishing workflow](.github/workflows/publish-appcast.yml) runs on stable Release publication or manual dispatch. It selects the current latest stable release, validates metadata, artifact sizes, SHA256 checksums, and the DMG's Ed25519 signature against the app's public key, then deploys the exact XML to GitHub Pages. Missing assets, prereleases, or invalid signatures fail publication instead of exposing a dangling feed. Deployments are serialized; the workflow uses only `GITHUB_TOKEN`, never the update private key.
 
-GitHub Pages must use **GitHub Actions** as its build source. The workflow must be present on `main` before publishing the first Sparkle-enabled release. There is no XML commit or private-key CI secret to maintain. To verify a published release locally with OpenSSL 3:
+GitHub Pages must use **GitHub Actions** as its build source. The `github-pages` environment must allow both the `main` branch and `v*` **tag** deployments: a Release-triggered workflow runs on its tag even though it checks out publishing code from `main`. The workflow must be present on `main` before publishing the first Sparkle-enabled release. There is no XML commit or private-key CI secret to maintain. To verify a published release locally with OpenSSL 3:
 
 ```sh
 GH_TOKEN="$(gh auth token)" python3 scripts/publish_appcast.py \
   --repository TerryHuangHD/any-usage-pin --output build/pages
 ```
 
-The full app/DMG notarization and update flow have been exercised locally: an isolated build-2 app discovered, downloaded, installed, and relaunched as the genuine signed build 3. Publication validation was exercised against those real artifacts with a local Release-asset transport fixture, plus live GitHub asset downloads and rejection of old releases missing XML. GitHub Actions deployment itself requires the workflow and new Release to be published.
+The app/DMG notarization and update flow have been exercised locally: an isolated build-2 app discovered, downloaded, installed, and relaunched as the genuine signed build 3. The published 1.0.2 assets passed live GitHub download, checksum, and Ed25519 verification; the [Release-triggered Actions deployment](https://github.com/TerryHuangHD/any-usage-pin/actions/runs/37147648535) published a byte-identical public feed. The unmodified notarized 1.0.2 app queried that HTTPS feed and displayed no installable update.
 
 
 ### Brand assets and attribution
