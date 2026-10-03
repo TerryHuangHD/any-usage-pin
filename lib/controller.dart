@@ -507,6 +507,18 @@ class UsageController extends ChangeNotifier {
     };
   }
 
+  String _resetSeatExpiryText(UsageAccount account) {
+    final expiry = account.soonestResetSeatExpiresAt;
+    if (expiry == null) return account.resetSeatCount == 0 ? '—' : '無資料';
+    final local = expiry.toLocal();
+    final date =
+        '${local.year}-${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    return now.isBefore(expiry) ? date : '已到期 · $date · 待來源更新';
+  }
+
   Map<String, Object?> _panelAccount(
     UsageAccount account,
     Set<String> pinnedKeys,
@@ -519,6 +531,8 @@ class UsageController extends ChangeNotifier {
       if (account.disabled && account.issue == null) 'OMP 已停用此憑證；請到 OMP 處理登入。',
       if (!account.identityKnown) '來源缺少可靠身份，不能建立持久 pin。',
     ];
+    final supportsResetCredits =
+        account.provider == 'openai-codex' || account.provider == 'anthropic';
     final limits = <Map<String, Object?>>[];
     var needsAttention =
         warnings.isNotEmpty || accountStale(account) || error != null;
@@ -565,6 +579,12 @@ class UsageController extends ChangeNotifier {
       'label': accountLabel(account),
       'plan': account.plan,
       'organization': account.orgName,
+      if (supportsResetCredits)
+        'resetSeats':
+            'Reset seats：${account.resetSeatCount ?? '無資料'}'
+            '${account.resetCreditsFetchedAt != null && _observationStale(account.resetCreditsFetchedAt) ? ' · 舊資料' : ''}',
+      if (supportsResetCredits)
+        'soonestExpires': 'Soonest expires：${_resetSeatExpiryText(account)}',
       'age':
           '${accountStale(account) ? '舊資料 · ' : ''}${ageText(account.fetchedAt, now)}',
       'pinned': pinnedKeys.contains(account.key),

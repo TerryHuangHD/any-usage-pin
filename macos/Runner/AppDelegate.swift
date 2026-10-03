@@ -90,6 +90,8 @@ private struct UsageAccount: Equatable {
   let label: String
   let plan: String?
   let organization: String?
+  let resetSeats: String?
+  let soonestExpires: String?
   let age: String
   let pinned: Bool
   let warning: String?
@@ -107,6 +109,8 @@ private struct UsageAccount: Equatable {
     label = data["label"] as? String ?? ""
     plan = data["plan"] as? String
     organization = data["organization"] as? String
+    resetSeats = data["resetSeats"] as? String
+    soonestExpires = data["soonestExpires"] as? String
     age = data["age"] as? String ?? ""
     pinned = data["pinned"] as? Bool ?? false
     warning = data["warning"] as? String
@@ -296,6 +300,9 @@ private final class UsageAccountView: NSView {
   private let name = UsageStyle.text(13, weight: .semibold)
   private let label = UsageStyle.text(12)
   private let metadata = UsageStyle.text(11)
+  private let resetInfo = UsageStyle.vertical(3)
+  private let resetSeats = UsageStyle.text(11, weight: .medium)
+  private let soonestExpires = UsageStyle.text(11)
   private let warning = UsageStyle.text(11, weight: .medium)
   private let noData = UsageStyle.text(12)
   private let limitsStack = UsageStyle.vertical(12)
@@ -342,6 +349,10 @@ private final class UsageAccountView: NSView {
     header.addArrangedSubview(identity)
     UsageStyle.add(header, to: stack)
     identity.widthAnchor.constraint(equalTo: header.widthAnchor, constant: -33).isActive = true
+    UsageStyle.add(resetSeats, to: resetInfo)
+    UsageStyle.add(soonestExpires, to: resetInfo)
+    soonestExpires.textColor = .secondaryLabelColor
+    UsageStyle.add(resetInfo, to: stack)
     UsageStyle.add(warning, to: stack)
     warning.textColor = .systemOrange
     tableHeader.orientation = .horizontal
@@ -406,6 +417,11 @@ private final class UsageAccountView: NSView {
     metadata.stringValue = [account.plan, account.organization, account.age]
       .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     metadata.isHidden = metadata.stringValue.isEmpty
+    resetSeats.stringValue = account.resetSeats ?? ""
+    resetSeats.isHidden = account.resetSeats == nil
+    soonestExpires.stringValue = account.soonestExpires ?? ""
+    soonestExpires.isHidden = account.soonestExpires == nil
+    resetInfo.isHidden = resetSeats.isHidden && soonestExpires.isHidden
     warning.stringValue = account.warning ?? ""
     warning.isHidden = warning.stringValue.isEmpty
     noData.isHidden = !account.limits.isEmpty

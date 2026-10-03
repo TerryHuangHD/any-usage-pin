@@ -184,6 +184,9 @@ class UsageAccount {
     this.projectId,
     this.orgName,
     this.plan,
+    this.resetSeatCount,
+    this.soonestResetSeatExpiresAt,
+    this.resetCreditsFetchedAt,
     this.issue,
     this.fetchedAt,
     List<UsageLimit> limits = const [],
@@ -194,6 +197,8 @@ class UsageAccount {
   final String key, provider, displayName;
   final String? email, accountId, orgId, projectId, orgName, plan, issue;
   final DateTime? fetchedAt;
+  final int? resetSeatCount;
+  final DateTime? soonestResetSeatExpiresAt, resetCreditsFetchedAt;
   final List<UsageLimit> limits;
   final bool disabled, identityKnown;
 
@@ -207,6 +212,11 @@ class UsageAccount {
     projectId: _optionalString(json, 'projectId'),
     orgName: _optionalString(json, 'orgName'),
     plan: _optionalString(json, 'plan'),
+    resetSeatCount: json['resetSeatCount'] == null
+        ? null
+        : _integer(json, 'resetSeatCount', 0),
+    soonestResetSeatExpiresAt: _storedDate(json['soonestResetSeatExpiresAt']),
+    resetCreditsFetchedAt: _storedDate(json['resetCreditsFetchedAt']),
     issue: _optionalString(json, 'issue'),
     fetchedAt: _storedDate(json['fetchedAt']),
     limits: _list(
@@ -227,6 +237,11 @@ class UsageAccount {
     'projectId': projectId,
     'orgName': orgName,
     'plan': plan,
+    'resetSeatCount': resetSeatCount,
+    'soonestResetSeatExpiresAt': soonestResetSeatExpiresAt
+        ?.toUtc()
+        .toIso8601String(),
+    'resetCreditsFetchedAt': resetCreditsFetchedAt?.toUtc().toIso8601String(),
     'issue': issue,
     'fetchedAt': fetchedAt?.toUtc().toIso8601String(),
     'limits': limits.map((item) => item.toJson()).toList(),
@@ -256,6 +271,19 @@ class UsageSnapshot {
       final report = _requiredMap(item);
       final provider = _requiredString(report, 'provider');
       final metadata = _map(report['metadata']) ?? const <String, dynamic>{};
+      final fetchedAt = _epochMilliseconds(report['fetchedAt']);
+      final supportsResetCredits =
+          provider == 'openai-codex' || provider == 'anthropic';
+      final resetCredits = supportsResetCredits
+          ? _map(report['resetCredits'])
+          : null;
+      final rawResetSeatCount = resetCredits?['availableCount'];
+      final resetSeatCount = rawResetSeatCount is int && rawResetSeatCount >= 0
+          ? rawResetSeatCount
+          : null;
+      final soonestResetSeatExpiresAt = resetSeatCount == 0
+          ? null
+          : _soonestResetCreditExpiry(resetCredits, fetchedAt);
       final rawLimits = report['limits'];
       final grouped = <String, List<UsageLimit>>{};
       final identities = <String, Map<String, dynamic>>{};
@@ -279,9 +307,7 @@ class UsageSnapshot {
         };
         final key = _accountKey(provider, identity, 'report-$index');
         identities[key] = identity;
-        grouped
-            .putIfAbsent(key, () => [])
-            .add(_ompLimit(limit, _epochMilliseconds(report['fetchedAt'])));
+        grouped.putIfAbsent(key, () => []).add(_ompLimit(limit, fetchedAt));
       }
       if (grouped.isEmpty) {
         final identity = <String, dynamic>{
@@ -302,6 +328,9 @@ class UsageSnapshot {
         final identity = identities[entry.key]!;
         final known = _identityKnown(identity);
         final limits = _uniqueLimits(entry.value);
+        final ownsResetCredits =
+            supportsResetCredits &&
+            _resetCreditsBelongTo(metadata, identity, grouped.length == 1);
         final issue = !known
             ? '用量無法可靠歸屬帳號，不能永久釘選。'
             : incomplete
@@ -316,8 +345,13 @@ class UsageSnapshot {
             entry.key,
             identity,
             limits: limits,
-            fetchedAt: _epochMilliseconds(report['fetchedAt']),
+            fetchedAt: fetchedAt,
             plan: _text(metadata['planType']) ?? _text(metadata['plan']),
+            resetSeatCount: ownsResetCredits ? resetSeatCount : null,
+            soonestResetSeatExpiresAt: ownsResetCredits
+                ? soonestResetSeatExpiresAt
+                : null,
+            resetCreditsFetchedAt: ownsResetCredits ? fetchedAt : null,
             issue: issue,
           ),
         );
@@ -1051,6 +1085,49 @@ String _accountKey(
   return '$provider:${base64Url.encode(utf8.encode(jsonEncode(values)))}';
 }
 
+DateTime? _soonestResetCreditExpiry(
+  Map<String, dynamic>? resetCredits,
+  DateTime? fetchedAt,
+) {
+  final credits = resetCredits?['credits'];
+  if (credits is! List) return null;
+  DateTime? soonest;
+  for (final raw in credits) {
+    final credit = _map(raw);
+    if (credit == null) continue;
+    final status = _text(credit['status']);
+    if (status != null && status != 'available') continue;
+    final rawExpiry = _text(credit['expiresAt']);
+    final expiry = rawExpiry == null
+        ? null
+        : DateTime.tryParse(rawExpiry)?.toUtc();
+    if (expiry == null || (fetchedAt != null && !expiry.isAfter(fetchedAt))) {
+      continue;
+    }
+    if (soonest == null || expiry.isBefore(soonest)) soonest = expiry;
+  }
+  return soonest;
+}
+
+bool _resetCreditsBelongTo(
+  Map<String, dynamic> metadata,
+  Map<String, dynamic> identity,
+  bool onlyAccount,
+) {
+  if (!_identityKnown(metadata)) return onlyAccount;
+  for (final field in ['email', 'accountId', 'orgId', 'projectId']) {
+    final owner = _text(metadata[field]);
+    if (owner == null) continue;
+    final scoped = _text(identity[field]);
+    if (field == 'email') {
+      if (owner.toLowerCase() != scoped?.toLowerCase()) return false;
+    } else if (owner != scoped) {
+      return false;
+    }
+  }
+  return true;
+}
+
 UsageAccount _makeAccount(
   String provider,
   String key,
@@ -1058,6 +1135,9 @@ UsageAccount _makeAccount(
   List<UsageLimit> limits = const [],
   DateTime? fetchedAt,
   String? plan,
+  int? resetSeatCount,
+  DateTime? soonestResetSeatExpiresAt,
+  DateTime? resetCreditsFetchedAt,
   String? issue,
   bool disabled = false,
 }) => UsageAccount(
@@ -1070,6 +1150,9 @@ UsageAccount _makeAccount(
   projectId: _text(identity['projectId']),
   orgName: _text(identity['orgName']),
   plan: plan,
+  resetSeatCount: resetSeatCount,
+  soonestResetSeatExpiresAt: soonestResetSeatExpiresAt,
+  resetCreditsFetchedAt: resetCreditsFetchedAt,
   issue: issue,
   fetchedAt: fetchedAt,
   limits: limits,
@@ -1106,6 +1189,14 @@ void _mergeReportedAccount(List<UsageAccount> accounts, UsageAccount next) {
       (next.fetchedAt != null &&
           !next.fetchedAt!.isBefore(previous.fetchedAt!));
   final newest = nextIsNewer ? next : previous;
+  // Reset credits belong to their own report observation, not the oldest meter.
+  final oldCreditsTime = previous.resetCreditsFetchedAt;
+  final newCreditsTime = next.resetCreditsFetchedAt;
+  final newestCredits =
+      oldCreditsTime == null ||
+          (newCreditsTime != null && !newCreditsTime.isBefore(oldCreditsTime))
+      ? next
+      : previous;
   // The account age is conservative; each meter retains its own observation time.
   final limits = <String, UsageLimit>{
     for (final item in previous.limits) item.id: item,
@@ -1140,6 +1231,9 @@ void _mergeReportedAccount(List<UsageAccount> accounts, UsageAccount next) {
     projectId: newest.projectId,
     orgName: newest.orgName,
     plan: newest.plan,
+    resetSeatCount: newestCredits.resetSeatCount,
+    soonestResetSeatExpiresAt: newestCredits.soonestResetSeatExpiresAt,
+    resetCreditsFetchedAt: newestCredits.resetCreditsFetchedAt,
     issue: newest.issue,
     fetchedAt: retainedAt,
     limits: _uniqueLimits(limits.values.toList()),

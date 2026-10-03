@@ -382,6 +382,163 @@ void main() {
     });
   });
 
+  group('reset seats', () {
+    test('provider counts and earliest available expiry survive caching', () {
+      final expiry = _observed.add(const Duration(days: 1));
+      for (final provider in ['openai-codex', 'anthropic']) {
+        final report = _report(provider: provider);
+        report['resetCredits'] = {
+          'availableCount': 3,
+          'credits': [
+            {
+              'status': 'redeemed',
+              'expiresAt': _observed
+                  .add(const Duration(hours: 1))
+                  .toIso8601String(),
+            },
+            {
+              'status': 'available',
+              'expiresAt': _observed
+                  .subtract(const Duration(hours: 1))
+                  .toIso8601String(),
+            },
+            {
+              'status': 'available',
+              'expiresAt': _observed
+                  .add(const Duration(days: 3))
+                  .toIso8601String(),
+            },
+            {'expiresAt': expiry.toIso8601String()},
+            {'status': 'available', 'expiresAt': 'bad-date'},
+          ],
+        };
+        final snapshot = _snapshot([report]);
+        final restored = UsageSnapshot.fromJson(snapshot.toJson());
+        for (final account in [
+          snapshot.accounts.single,
+          restored.accounts.single,
+        ]) {
+          expect(account.resetSeatCount, 3);
+          expect(account.soonestResetSeatExpiresAt, expiry);
+          expect(account.resetCreditsFetchedAt, _observed);
+        }
+      }
+    });
+
+    test('zero seats are distinct from missing or malformed counts', () {
+      final zero = _report()
+        ..['resetCredits'] = {
+          'availableCount': 0,
+          'credits': [
+            {
+              'status': 'available',
+              'expiresAt': _observed
+                  .add(const Duration(days: 1))
+                  .toIso8601String(),
+            },
+          ],
+        };
+      final empty = _snapshot([zero]).accounts.single;
+      expect(empty.resetSeatCount, 0);
+      expect(empty.soonestResetSeatExpiresAt, isNull);
+      for (final credits in [
+        null,
+        <String, dynamic>{},
+        {'availableCount': -1},
+        {'availableCount': '3'},
+        {'availableCount': 2.5},
+      ]) {
+        final report = _report()..['resetCredits'] = credits;
+        final account = _snapshot([report]).accounts.single;
+        expect(account.resetSeatCount, isNull);
+        expect(account.soonestResetSeatExpiresAt, isNull);
+      }
+      final legacy = empty.toJson()
+        ..remove('resetSeatCount')
+        ..remove('soonestResetSeatExpiresAt')
+        ..remove('resetCreditsFetchedAt');
+      expect(UsageAccount.fromJson(legacy).resetSeatCount, isNull);
+    });
+
+    test(
+      'reset credits retain their own newest observation across merged meters',
+      () {
+        final earlier = _observed.subtract(const Duration(minutes: 10));
+        Map<String, dynamic> report(
+          DateTime fetchedAt,
+          int count, {
+          bool weekly = false,
+        }) =>
+            _report(
+                fetchedAt: fetchedAt,
+                limits: [
+                  _limit(),
+                  if (weekly) _limit(id: 'weekly', window: '7d'),
+                ],
+              )
+              ..['resetCredits'] = {
+                'availableCount': count,
+                'credits': [
+                  {
+                    'status': 'available',
+                    'expiresAt': _observed
+                        .add(Duration(days: count))
+                        .toIso8601String(),
+                  },
+                ],
+              };
+        final newest = report(_observed, 4);
+        final account = _snapshot([
+          report(earlier, 2, weekly: true),
+          newest,
+          report(_observed.subtract(const Duration(minutes: 5)), 1),
+        ]).accounts.single;
+        expect(account.fetchedAt, earlier);
+        expect(account.resetSeatCount, 4);
+        expect(account.resetCreditsFetchedAt, _observed);
+        expect(
+          account.soonestResetSeatExpiresAt,
+          _observed.add(const Duration(days: 4)),
+        );
+        final missing = _snapshot([
+          newest,
+          _report(fetchedAt: _observed.add(const Duration(minutes: 1))),
+        ]).accounts.single;
+        expect(missing.resetSeatCount, isNull);
+        expect(missing.soonestResetSeatExpiresAt, isNull);
+      },
+    );
+
+    test(
+      'report reset credits never transfer to a different scoped identity',
+      () {
+        final report = _report(
+          email: 'owner@example.invalid',
+          account: 'owner',
+          limits: [
+            _limit(id: 'owner-window'),
+            _limit(
+              id: 'other-window',
+              scope: {'email': 'other@example.invalid', 'accountId': 'other'},
+            ),
+          ],
+        )..['resetCredits'] = {'availableCount': 2};
+        final accounts = _snapshot([report]).accounts;
+        expect(
+          accounts
+              .singleWhere((account) => account.accountId == 'owner')
+              .resetSeatCount,
+          2,
+        );
+        final other = accounts.singleWhere(
+          (account) => account.accountId == 'other',
+        );
+        expect(other.resetSeatCount, isNull);
+        expect(other.resetCreditsFetchedAt, isNull);
+      },
+    );
+  });
+
   group('quota units and reset boundaries', () {
     test(
       'money retains its unit while fractions remain available for a quota bar',
