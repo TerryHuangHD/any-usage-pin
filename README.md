@@ -29,6 +29,8 @@ An account signed in to OMP can appear here even if it is not signed in to that 
 
 ### Install the macOS app
 
+**Current release: [AnyUsagePin 1.0.1](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.0.1) (build 2).** Includes grouped menu bar pins, separate glass usage and settings windows, optional launch at login, and a configurable 1–10 minute refresh interval.
+
 1. Download the **macOS universal DMG** and `SHA256SUMS` from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest).
 2. Open the DMG and drag **AnyUsagePin.app** to **Applications**.
 3. Open AnyUsagePin from Applications. It runs in the menu bar, not the Dock.
