@@ -2,9 +2,648 @@ import Cocoa
 import CoreFoundation
 import FlutterMacOS
 
-private final class DashboardPanel: NSPanel {
+private final class GlassSurface: NSView {
+  let content = NSView()
+
+  init(cornerRadius: CGFloat) {
+    super.init(frame: .zero)
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.clear.cgColor
+    layer?.cornerRadius = cornerRadius
+    layer?.masksToBounds = true
+    let effect: NSView
+    if #available(macOS 26.0, *) {
+      let glass = NSGlassEffectView()
+      glass.style = .regular
+      glass.cornerRadius = cornerRadius
+      glass.contentView = content
+      effect = glass
+    } else {
+      let material = NSVisualEffectView()
+      material.material = .popover
+      material.blendingMode = .behindWindow
+      material.state = .active
+      if cornerRadius > 0 {
+        let size = NSSize(width: cornerRadius * 2 + 1, height: cornerRadius * 2 + 1)
+        let mask = NSImage(size: size, flipped: false) { rect in
+          NSColor.white.setFill()
+          NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+          return true
+        }
+        mask.capInsets = NSEdgeInsets(
+          top: cornerRadius, left: cornerRadius, bottom: cornerRadius, right: cornerRadius)
+        mask.resizingMode = .stretch
+        material.maskImage = mask
+      }
+      material.addSubview(content)
+      effect = material
+    }
+    addSubview(effect)
+    effect.translatesAutoresizingMaskIntoConstraints = false
+    content.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      effect.leadingAnchor.constraint(equalTo: leadingAnchor),
+      effect.trailingAnchor.constraint(equalTo: trailingAnchor),
+      effect.topAnchor.constraint(equalTo: topAnchor),
+      effect.bottomAnchor.constraint(equalTo: bottomAnchor),
+      content.leadingAnchor.constraint(equalTo: effect.leadingAnchor),
+      content.trailingAnchor.constraint(equalTo: effect.trailingAnchor),
+      content.topAnchor.constraint(equalTo: effect.topAnchor),
+      content.bottomAnchor.constraint(equalTo: effect.bottomAnchor),
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+private final class UsagePanel: NSPanel {
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+}
+
+private struct UsageLimit: Equatable {
+  let id: String
+  let label: String
+  let value: String
+  let reset: String
+  let fraction: Double?
+  let status: String
+  let warning: String?
+
+  init(_ data: [String: Any]) {
+    id = data["id"] as? String ?? ""
+    label = data["label"] as? String ?? ""
+    value = data["value"] as? String ?? "無資料"
+    reset = data["reset"] as? String ?? ""
+    let number = (data["fraction"] as? NSNumber)?.doubleValue
+    fraction = number.flatMap { $0.isFinite ? min(1, max(0, $0)) : nil }
+    status = data["status"] as? String ?? "missing"
+    warning = data["warning"] as? String
+  }
+}
+
+private struct UsageAccount: Equatable {
+  let id: String
+  let provider: String
+  let name: String
+  let label: String
+  let plan: String?
+  let organization: String?
+  let age: String
+  let pinned: Bool
+  let warning: String?
+  let limits: [UsageLimit]
+  let emptyMessage: String
+  let needsAttention: Bool
+
+  var hasProblem: Bool { needsAttention }
+
+  init(_ data: [String: Any]) {
+    id = data["id"] as? String ?? ""
+    let providerID = data["provider"] as? String ?? ""
+    provider = providerID
+    name = data["name"] as? String ?? providerID
+    label = data["label"] as? String ?? ""
+    plan = data["plan"] as? String
+    organization = data["organization"] as? String
+    age = data["age"] as? String ?? ""
+    pinned = data["pinned"] as? Bool ?? false
+    warning = data["warning"] as? String
+    limits = (data["limits"] as? [[String: Any]] ?? []).map(UsageLimit.init)
+    emptyMessage = data["emptyMessage"] as? String ?? "沒有可用的配額資料"
+    needsAttention = data["needsAttention"] as? Bool ?? false
+  }
+}
+
+private enum UsageStyle {
+  static let cardColor = NSColor(name: "UsageCard") { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      ? NSColor(srgbRed: 34 / 255, green: 34 / 255, blue: 34 / 255, alpha: 0.90)
+      : NSColor.white.withAlphaComponent(0.82)
+  }
+  static let cardBorder = NSColor(name: "UsageCardBorder") { appearance in
+    appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+      ? NSColor.white.withAlphaComponent(0.10)
+      : NSColor.black.withAlphaComponent(0.08)
+  }
+
+  static func text(_ size: CGFloat, weight: NSFont.Weight = .regular) -> NSTextField {
+    let field = NSTextField(wrappingLabelWithString: "")
+    field.font = .systemFont(ofSize: size, weight: weight)
+    field.textColor = .labelColor
+    field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    return field
+  }
+
+  static func vertical(_ spacing: CGFloat) -> NSStackView {
+    let stack = NSStackView()
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = spacing
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    return stack
+  }
+
+  static func add(_ child: NSView, to stack: NSStackView) {
+    stack.addArrangedSubview(child)
+    child.translatesAutoresizingMaskIntoConstraints = false
+    child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+  }
+
+  static func statusColor(_ status: String) -> NSColor {
+    switch status {
+    case "error": return .systemRed
+    case "stale": return .systemOrange
+    case "missing": return .secondaryLabelColor
+    default: return .systemBlue
+    }
+  }
+}
+
+private final class UsageDocumentView: NSView {
+  override var isFlipped: Bool { true }
+}
+
+private final class UsageProgressView: NSView {
+  var fraction: Double? {
+    didSet { needsDisplay = true }
+  }
+  var status = "missing" {
+    didSet { needsDisplay = true }
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    super.draw(dirtyRect)
+    NSColor.quaternaryLabelColor.setFill()
+    NSBezierPath(roundedRect: bounds, xRadius: 3, yRadius: 3).fill()
+    guard let fraction = fraction else { return }
+    let fill = NSRect(x: 0, y: 0, width: bounds.width * CGFloat(fraction), height: bounds.height)
+    let color = status == "ok" && fraction <= 0.1 ? NSColor.systemRed :
+      status == "ok" && fraction <= 0.25 ? NSColor.systemOrange : UsageStyle.statusColor(status)
+    color.setFill()
+    NSBezierPath(roundedRect: fill, xRadius: 3, yRadius: 3).fill()
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    needsDisplay = true
+  }
+}
+
+private final class UsageLimitView: NSView {
+  private let stack = UsageStyle.vertical(5)
+  private let heading = NSStackView()
+  private let title = UsageStyle.text(12, weight: .medium)
+  private let value = UsageStyle.text(16, weight: .semibold)
+  private let progress = UsageProgressView()
+  private let reset = UsageStyle.text(11)
+  private let warning = UsageStyle.text(11, weight: .medium)
+  private var previous: UsageLimit?
+  private var previousCompact = false
+  private var previousTable = false
+  private lazy var tableValueWidth = value.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.25)
+  private lazy var tableResetWidth = reset.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.36)
+  private lazy var resetFullWidth = reset.widthAnchor.constraint(equalTo: stack.widthAnchor)
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+      stack.topAnchor.constraint(equalTo: topAnchor),
+      stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+    heading.orientation = .horizontal
+    heading.distribution = .fill
+    heading.alignment = .firstBaseline
+    heading.spacing = 8
+    heading.addArrangedSubview(title)
+    heading.addArrangedSubview(value)
+    title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    value.font = .monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
+    value.alignment = .right
+    value.setContentHuggingPriority(.required, for: .horizontal)
+    value.setContentCompressionResistancePriority(.required, for: .horizontal)
+    UsageStyle.add(heading, to: stack)
+    value.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, multiplier: 0.65).isActive = true
+    UsageStyle.add(progress, to: stack)
+    progress.heightAnchor.constraint(equalToConstant: 6).isActive = true
+    progress.setAccessibilityElement(true)
+    progress.setAccessibilityRole(.progressIndicator)
+    stack.addArrangedSubview(reset)
+    reset.translatesAutoresizingMaskIntoConstraints = false
+    resetFullWidth.isActive = true
+    reset.textColor = .secondaryLabelColor
+    UsageStyle.add(warning, to: stack)
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  func update(_ limit: UsageLimit, compact: Bool, table: Bool) {
+    guard previous != limit || previousCompact != compact || previousTable != table else { return }
+    if previous == nil || previousTable != table {
+      if table {
+        stack.removeArrangedSubview(reset)
+        reset.removeFromSuperview()
+        heading.addArrangedSubview(reset)
+      } else if previousTable {
+        heading.removeArrangedSubview(reset)
+        reset.removeFromSuperview()
+        stack.insertArrangedSubview(reset, at: 2)
+      }
+      tableValueWidth.isActive = table
+      tableResetWidth.isActive = table
+      resetFullWidth.isActive = !table
+      progress.isHidden = table
+    }
+    previous = limit
+    previousCompact = compact
+    previousTable = table
+    stack.spacing = compact ? 3 : 5
+    title.stringValue = limit.label
+    value.stringValue = limit.value
+    value.font = .monospacedDigitSystemFont(ofSize: compact ? 13 : 16, weight: .semibold)
+    value.textColor = limit.status == "ok" ? .labelColor : UsageStyle.statusColor(limit.status)
+    progress.fraction = limit.fraction
+    progress.status = limit.status
+    progress.isHidden = table || limit.fraction == nil
+    progress.setAccessibilityLabel("\(limit.label), \(limit.status)")
+    progress.setAccessibilityValue(limit.value)
+    reset.stringValue = limit.reset
+    reset.isHidden = limit.reset.isEmpty
+    let message: String
+    if let detail = limit.warning, !detail.isEmpty {
+      message = detail
+    } else {
+      switch limit.status {
+      case "stale": message = "舊資料 · 待來源更新"
+      case "error": message = "查詢異常 · 保留已知資料"
+      case "missing": message = "缺少配額數值"
+      default: message = ""
+      }
+    }
+    warning.stringValue = message
+    warning.textColor = UsageStyle.statusColor(limit.status == "ok" ? "stale" : limit.status)
+    warning.isHidden = message.isEmpty
+  }
+}
+
+private final class UsageAccountView: NSView {
+  private let stack = UsageStyle.vertical(12)
+  private let logo = NSImageView()
+  private let name = UsageStyle.text(13, weight: .semibold)
+  private let label = UsageStyle.text(12)
+  private let metadata = UsageStyle.text(11)
+  private let warning = UsageStyle.text(11, weight: .medium)
+  private let noData = UsageStyle.text(12)
+  private let limitsStack = UsageStyle.vertical(12)
+  private let tableHeader = NSStackView()
+  private var limitViews: [String: UsageLimitView] = [:]
+  private var limitIDs: [String] = []
+  private var padding: [NSLayoutConstraint] = []
+  private var previous: UsageAccount?
+  private var previousDense = false
+  private var previousTable = false
+  private var table = false
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.cornerRadius = 12
+    layer?.borderWidth = 1
+    addSubview(stack)
+    padding = [
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: 12),
+      stack.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+      bottomAnchor.constraint(equalTo: stack.bottomAnchor, constant: 12),
+    ]
+    NSLayoutConstraint.activate(padding)
+    let header = NSStackView()
+    header.orientation = .horizontal
+    header.distribution = .fill
+    header.alignment = .top
+    header.spacing = 9
+    logo.imageScaling = .scaleProportionallyUpOrDown
+    logo.contentTintColor = .labelColor
+    logo.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      logo.widthAnchor.constraint(equalToConstant: 24),
+      logo.heightAnchor.constraint(equalToConstant: 24),
+    ])
+    header.addArrangedSubview(logo)
+    let identity = UsageStyle.vertical(3)
+    UsageStyle.add(name, to: identity)
+    UsageStyle.add(label, to: identity)
+    UsageStyle.add(metadata, to: identity)
+    metadata.textColor = .secondaryLabelColor
+    header.addArrangedSubview(identity)
+    UsageStyle.add(header, to: stack)
+    identity.widthAnchor.constraint(equalTo: header.widthAnchor, constant: -33).isActive = true
+    UsageStyle.add(warning, to: stack)
+    warning.textColor = .systemOrange
+    tableHeader.orientation = .horizontal
+    tableHeader.distribution = .fill
+    tableHeader.alignment = .firstBaseline
+    tableHeader.spacing = 8
+    let windowTitle = UsageStyle.text(10)
+    windowTitle.stringValue = "窗口"
+    windowTitle.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    let remainingTitle = UsageStyle.text(10)
+    remainingTitle.stringValue = "剩餘"
+    remainingTitle.alignment = .right
+    let resetTitle = UsageStyle.text(10)
+    resetTitle.stringValue = "重置倒數"
+    for field in [windowTitle, remainingTitle, resetTitle] {
+      field.textColor = .secondaryLabelColor
+      tableHeader.addArrangedSubview(field)
+    }
+    NSLayoutConstraint.activate([
+      remainingTitle.widthAnchor.constraint(equalTo: tableHeader.widthAnchor, multiplier: 0.25),
+      resetTitle.widthAnchor.constraint(equalTo: tableHeader.widthAnchor, multiplier: 0.36),
+    ])
+    UsageStyle.add(limitsStack, to: stack)
+    UsageStyle.add(noData, to: stack)
+    noData.stringValue = "沒有可用的配額資料"
+    noData.textColor = .secondaryLabelColor
+    updateColors()
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    updateColors()
+  }
+
+  private func updateColors() {
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      layer?.backgroundColor = UsageStyle.cardColor.cgColor
+      layer?.borderColor = UsageStyle.cardBorder.cgColor
+      layer?.cornerRadius = 12
+    }
+  }
+
+  func update(_ account: UsageAccount, dense: Bool, table: Bool) {
+    guard previous != account || previousDense != dense || previousTable != table else { return }
+    let tableChanged = previousTable != table
+    previous = account
+    previousDense = dense
+    previousTable = table
+    self.table = table
+    updateColors()
+    let compact = dense || table
+    padding.forEach { $0.constant = compact ? 9 : 12 }
+    stack.spacing = compact ? 8 : 12
+    limitsStack.spacing = compact ? 9 : 14
+    logo.image = StatusArtwork.logo(for: account.provider)
+    logo.setAccessibilityLabel(account.name)
+    name.stringValue = account.name + (account.pinned ? " · 已釘選" : "")
+    label.stringValue = account.label
+    label.isHidden = account.label.isEmpty
+    metadata.stringValue = [account.plan, account.organization, account.age]
+      .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    metadata.isHidden = metadata.stringValue.isEmpty
+    warning.stringValue = account.warning ?? ""
+    warning.isHidden = warning.stringValue.isEmpty
+    noData.isHidden = !account.limits.isEmpty
+    noData.stringValue = account.emptyMessage
+    limitsStack.isHidden = account.limits.isEmpty
+    let ids = account.limits.map(\.id)
+    if ids != limitIDs || tableChanged {
+      for view in limitsStack.arrangedSubviews {
+        limitsStack.removeArrangedSubview(view)
+        view.removeFromSuperview()
+      }
+      if table { UsageStyle.add(tableHeader, to: limitsStack) }
+      limitViews = limitViews.filter { ids.contains($0.key) }
+      for limit in account.limits {
+        let view = limitViews[limit.id] ?? UsageLimitView()
+        limitViews[limit.id] = view
+        UsageStyle.add(view, to: limitsStack)
+      }
+      limitIDs = ids
+    }
+    for limit in account.limits {
+      limitViews[limit.id]?.update(limit, compact: compact, table: table)
+    }
+  }
+}
+
+private final class UsagePanelController: NSViewController {
+  var onRefresh: (() -> Void)?
+  var onSettings: (() -> Void)?
+  private let scroll = NSScrollView()
+  private let document = UsageDocumentView()
+  private let content = UsageStyle.vertical(12)
+  private let accountsStack = UsageStyle.vertical(10)
+  private let empty = UsageStyle.text(13)
+  private let focusNotice = UsageStyle.text(12)
+  private let notices = UsageStyle.text(11)
+  private let expand = NSButton(title: "展開全部帳號", target: nil, action: nil)
+  private let refresh = NSButton()
+  private let spinner = NSProgressIndicator()
+  private let footerStatus = NSTextField(labelWithString: "等待來源資料")
+  private var accounts: [UsageAccount] = []
+  private var accountViews: [String: UsageAccountView] = [:]
+  private var visibleIDs: [String] = []
+  private var focusExpanded = false
+  private var layout = "cards"
+  private var dense = false
+  private var emptyMessage = "等待來源資料"
+
+  override func loadView() {
+    let shell = GlassSurface(cornerRadius: 16)
+    shell.widthAnchor.constraint(equalToConstant: 380).isActive = true
+    let root = shell.content
+    view = shell
+
+    let title = UsageStyle.text(14, weight: .semibold)
+    title.stringValue = "訂閱用量"
+    title.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(title)
+    scroll.translatesAutoresizingMaskIntoConstraints = false
+    scroll.hasVerticalScroller = true
+    scroll.autohidesScrollers = true
+    scroll.drawsBackground = false
+    scroll.borderType = .noBorder
+    scroll.scrollerStyle = .overlay
+    scroll.contentView.drawsBackground = false
+    scroll.contentView.backgroundColor = .clear
+    scroll.backgroundColor = .clear
+    root.addSubview(scroll)
+    document.translatesAutoresizingMaskIntoConstraints = false
+    scroll.documentView = document
+    document.addSubview(content)
+    NSLayoutConstraint.activate([
+      document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+      content.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 12),
+      content.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -12),
+      content.topAnchor.constraint(equalTo: document.topAnchor, constant: 4),
+      content.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -12),
+    ])
+    UsageStyle.add(focusNotice, to: content)
+    focusNotice.textColor = .secondaryLabelColor
+    UsageStyle.add(expand, to: content)
+    expand.bezelStyle = .rounded
+    expand.target = self
+    expand.action = #selector(toggleFocus)
+    UsageStyle.add(empty, to: content)
+    empty.textColor = .secondaryLabelColor
+    UsageStyle.add(accountsStack, to: content)
+    UsageStyle.add(notices, to: content)
+    notices.textColor = .systemOrange
+    focusNotice.isHidden = true
+    expand.isHidden = true
+    notices.isHidden = true
+    empty.stringValue = emptyMessage
+
+    let separator = NSBox()
+    separator.boxType = .separator
+    separator.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(separator)
+    let footer = NSStackView()
+    footer.orientation = .horizontal
+    footer.distribution = .fill
+    footer.alignment = .centerY
+    footer.spacing = 8
+    footer.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(footer)
+    refresh.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "更新用量")
+    refresh.bezelStyle = .texturedRounded
+    refresh.target = self
+    refresh.action = #selector(refreshUsage)
+    refresh.toolTip = "更新用量"
+    refresh.setAccessibilityLabel("更新用量")
+    footer.addArrangedSubview(refresh)
+    spinner.style = .spinning
+    spinner.controlSize = .small
+    spinner.isDisplayedWhenStopped = false
+    spinner.isHidden = true
+    footer.addArrangedSubview(spinner)
+    footerStatus.font = .systemFont(ofSize: 11)
+    footerStatus.textColor = .secondaryLabelColor
+    footerStatus.lineBreakMode = .byTruncatingTail
+    footerStatus.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    footerStatus.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    footer.addArrangedSubview(footerStatus)
+    let settings = NSButton()
+    settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "開啟設定")
+    settings.bezelStyle = .texturedRounded
+    settings.target = self
+    settings.action = #selector(openSettings)
+    settings.toolTip = "設定"
+    settings.setAccessibilityLabel("開啟設定")
+    footer.addArrangedSubview(settings)
+    NSLayoutConstraint.activate([
+      title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+      title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
+      scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 9),
+      scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      scroll.bottomAnchor.constraint(equalTo: separator.topAnchor, constant: -4),
+      separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      separator.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -9),
+      footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+      footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+      footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10),
+      footer.heightAnchor.constraint(equalToConstant: 28),
+      refresh.widthAnchor.constraint(equalToConstant: 30),
+      settings.widthAnchor.constraint(equalToConstant: 30),
+      spinner.widthAnchor.constraint(equalToConstant: 16),
+      spinner.heightAnchor.constraint(equalToConstant: 16),
+    ])
+  }
+
+  func update(_ data: [String: Any]) {
+    _ = view
+    switch data["theme"] as? String {
+    case "light": view.appearance = NSAppearance(named: .aqua)
+    case "dark": view.appearance = NSAppearance(named: .darkAqua)
+    default: view.appearance = nil
+    }
+    accounts = (data["accounts"] as? [[String: Any]] ?? []).map(UsageAccount.init)
+    layout = data["layout"] as? String ?? "cards"
+    dense = data["dense"] as? Bool ?? false
+    content.spacing = dense ? 8 : 12
+    accountsStack.spacing = dense || layout == "table" ? 6 : 10
+    emptyMessage = data["emptyMessage"] as? String ?? "沒有可查詢的帳號"
+    let loading = data["loading"] as? Bool ?? false
+    let initialized = data["initialized"] as? Bool ?? false
+    footerStatus.stringValue = data["footer"] as? String ??
+      (loading ? "向 OMP 查詢中…" : initialized ? "用量已更新" : "等待來源資料")
+    footerStatus.toolTip = footerStatus.stringValue
+    refresh.isEnabled = initialized && !loading
+    spinner.isHidden = !loading
+    if loading { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
+    notices.stringValue = (data["notices"] as? [String] ?? []).joined(separator: "\n\n")
+    notices.isHidden = notices.stringValue.isEmpty
+    renderAccounts()
+  }
+
+  private func renderAccounts() {
+    view.layoutSubtreeIfNeeded()
+    let oldY = scroll.contentView.bounds.minY
+    let anchor = visibleIDs.first { id in
+      guard let card = accountViews[id] else { return false }
+      return card.convert(card.bounds, to: document).maxY > oldY
+    }
+    let anchorOffset = anchor.flatMap { accountViews[$0] }
+      .map { oldY - $0.convert($0.bounds, to: document).minY }
+    let focused = layout == "focus"
+    let visible = focused && !focusExpanded ? accounts.filter(\.pinned) : accounts
+    let unpinned = accounts.filter { !$0.pinned }
+    let problems = unpinned.filter(\.hasProblem).count
+    focusNotice.isHidden = !focused || unpinned.isEmpty
+    if problems > 0 {
+      let detail = focusExpanded ? "" : "請展開全部帳號查看。"
+      focusNotice.stringValue = "\(problems) 個未釘選帳號需注意。\(detail)"
+    } else {
+      focusNotice.stringValue = focusExpanded ? "已展開全部帳號。" : "只顯示已釘選帳號。"
+    }
+    expand.isHidden = !focused || unpinned.isEmpty
+    expand.title = focusExpanded ? "收起全部帳號" : "展開全部帳號（\(accounts.count)）"
+    empty.isHidden = !visible.isEmpty
+    empty.stringValue = accounts.isEmpty ? emptyMessage : "尚未釘選帳號。請展開全部查看用量，或到設定新增 pin。"
+    accountsStack.isHidden = visible.isEmpty
+    let ids = visible.map(\.id)
+    if ids != visibleIDs {
+      for card in accountsStack.arrangedSubviews {
+        accountsStack.removeArrangedSubview(card)
+        card.removeFromSuperview()
+      }
+      for account in visible {
+        let card = accountViews[account.id] ?? UsageAccountView()
+        accountViews[account.id] = card
+        UsageStyle.add(card, to: accountsStack)
+      }
+      visibleIDs = ids
+    }
+    let accountIDs = Set(accounts.map(\.id))
+    accountViews = accountViews.filter { accountIDs.contains($0.key) }
+    for account in visible {
+      accountViews[account.id]?.update(account, dense: dense, table: layout == "table")
+    }
+    view.layoutSubtreeIfNeeded()
+    var y = oldY
+    if let anchor = anchor, ids.contains(anchor), let card = accountViews[anchor],
+       let offset = anchorOffset {
+      y = card.convert(card.bounds, to: document).minY + offset
+    }
+    let maximum = max(0, document.bounds.height - scroll.contentView.bounds.height)
+    scroll.contentView.scroll(to: NSPoint(x: 0, y: min(maximum, max(0, y))))
+    scroll.reflectScrolledClipView(scroll.contentView)
+  }
+
+  @objc private func toggleFocus() {
+    focusExpanded.toggle()
+    renderAccounts()
+  }
+
+  @objc private func refreshUsage() { onRefresh?() }
+  @objc private func openSettings() { onSettings?() }
 }
 
 private struct StatusLayer: Equatable {
@@ -80,9 +719,10 @@ private struct StatusPin: Equatable {
 @main
 class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   private var engine: FlutterEngine?
-  private var flutterController: FlutterViewController?
   private var desktopChannel: FlutterMethodChannel?
-  private var panel: DashboardPanel?
+  private var panel: UsagePanel?
+  private var usageController: UsagePanelController?
+  private var settingsWindow: NSWindow?
   private var launcher: NSStatusItem?
   private var pinItems: [String: NSStatusItem] = [:]
   private var pins: [StatusPin] = []
@@ -118,29 +758,61 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     }
 
     let controller = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
-    flutterController = controller
+    controller.backgroundColor = .clear
+    let settingsGlass = GlassSurface(cornerRadius: 0)
+    controller.view.addSubview(settingsGlass, positioned: .below, relativeTo: nil)
+    settingsGlass.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      settingsGlass.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+      settingsGlass.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+      settingsGlass.topAnchor.constraint(equalTo: controller.view.topAnchor),
+      settingsGlass.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+    ])
     RegisterGeneratedPlugins(registry: controller)
-    let panel = DashboardPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 620, height: 680),
-      styleMask: [.titled, .closable, .resizable],
+    let settings = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 720, height: 760),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
-    panel.title = "AnyUsagePin"
-    panel.titleVisibility = .hidden
+    settings.title = "AnyUsagePin 設定"
+    settings.backgroundColor = .windowBackgroundColor
+    settings.isOpaque = false
+    settings.titlebarAppearsTransparent = false
+    settings.toolbarStyle = .unified
+    settings.isReleasedWhenClosed = false
+    settings.hidesOnDeactivate = false
+    settings.level = .normal
+    settings.minSize = NSSize(width: 620, height: 480)
+    settings.delegate = self
+    settings.contentViewController = controller
+    settings.setContentSize(NSSize(width: 720, height: 760))
+    settings.center()
+    settingsWindow = settings
+    mainFlutterWindow = settings
+
+    let usageController = UsagePanelController()
+    usageController.onRefresh = { [weak self] in
+      self?.desktopChannel?.invokeMethod("desktop.refresh", arguments: nil)
+    }
+    usageController.onSettings = { [weak self] in self?.showSettings() }
+    self.usageController = usageController
+    let panel = UsagePanel(
+      contentRect: NSRect(x: 0, y: 0, width: 380, height: 620),
+      styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    panel.title = "AnyUsagePin 用量"
     panel.isReleasedWhenClosed = false
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
     panel.isFloatingPanel = true
     panel.becomesKeyOnlyIfNeeded = false
     panel.hidesOnDeactivate = false
+    panel.hasShadow = true
     panel.level = .floating
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-    panel.minSize = NSSize(width: 440, height: 440)
     panel.delegate = self
+    panel.contentViewController = usageController
+    panel.setContentSize(NSSize(width: 380, height: 620))
     self.panel = panel
-    mainFlutterWindow = panel
-    panel.contentViewController = controller
-    panel.setContentSize(NSSize(width: 620, height: 680))
-    for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-      panel.standardWindowButton(button)?.isHidden = true
-    }
     installObservers()
     if !engine.run(withEntrypoint: nil) {
       let alert = NSAlert()
@@ -180,12 +852,20 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       }
       updatePins(newPins)
       result(nil)
-    case "panel.show":
-      showPanel()
-      result(nil)
-    case "panel.hide":
-      requestedOpen = false
-      hidePanel()
+    case "panel.update":
+      guard let arguments = call.arguments as? [String: Any] else {
+        result(FlutterError(code: "invalid_arguments", message: "Expected panel data.", details: nil))
+        return
+      }
+      let appearance: NSAppearance?
+      switch arguments["theme"] as? String {
+      case "light": appearance = NSAppearance(named: .aqua)
+      case "dark": appearance = NSAppearance(named: .darkAqua)
+      default: appearance = nil
+      }
+      settingsWindow?.appearance = appearance
+      panel?.appearance = appearance
+      usageController?.update(arguments)
       result(nil)
     case "app.quit":
       result(nil)
@@ -268,6 +948,10 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       let open = NSMenuItem(title: "Open", action: #selector(openFromMenu), keyEquivalent: "")
       open.target = self
       menu.addItem(open)
+      let settings = NSMenuItem(
+        title: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ",")
+      settings.target = self
+      menu.addItem(settings)
       menu.addItem(.separator())
       let quit = NSMenuItem(title: "Quit", action: #selector(quitFromMenu), keyEquivalent: "q")
       quit.target = self
@@ -279,6 +963,18 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   }
 
   @objc private func openFromMenu() { showPanel() }
+  @objc private func openSettingsFromMenu() { showSettings() }
+
+  private func showSettings() {
+    hidePanel()
+    guard let settings = settingsWindow else { return }
+    NSApp.activate(ignoringOtherApps: true)
+    if settings.isMiniaturized { settings.deminiaturize(nil) }
+    settings.makeKeyAndOrderFront(nil)
+    if let inputView = settings.contentViewController?.view.subviews.first(where: { $0.acceptsFirstResponder }) {
+      settings.makeFirstResponder(inputView)
+    }
+  }
   @objc private func quitFromMenu() { NSApp.terminate(nil) }
 
   private func showPanel() {
@@ -288,9 +984,6 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     if !wasVisible { positionPanel(panel) }
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
-    if let inputView = flutterController?.view.subviews.first(where: { $0.acceptsFirstResponder }) {
-      panel.makeFirstResponder(inputView)
-    }
     if !wasVisible { desktopChannel?.invokeMethod("desktop.opened", arguments: nil) }
   }
 
@@ -301,8 +994,8 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     guard let screen = screen else { panel.center(); return }
     let visible = screen.visibleFrame
     var frame = panel.frame
-    frame.size.width = min(frame.width, visible.width)
-    frame.size.height = min(frame.height, visible.height - 12)
+    frame.size.width = min(380, visible.width)
+    frame.size.height = min(620, visible.height - 12)
     var centerX = visible.midX
     if let button = button, let window = button.window {
       let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
@@ -325,11 +1018,20 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    hidePanel()
+    if sender === panel {
+      hidePanel()
+    } else if sender === settingsWindow {
+      sender.orderOut(nil)
+    } else {
+      return true
+    }
     return false
   }
 
-  func windowDidResignKey(_ notification: Notification) { hidePanel() }
+  func windowDidResignKey(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, window === panel else { return }
+    hidePanel()
+  }
 
   private func installObservers() {
     NSWorkspace.shared.notificationCenter.addObserver(
@@ -345,7 +1047,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
         guard let self = self, let panel = self.panel, panel.isVisible else { return event }
         if event.type == .keyDown {
-          if event.keyCode == 53 {
+          if event.keyCode == 53 && event.window === panel {
             self.hidePanel()
             return nil
           }
@@ -426,7 +1128,7 @@ private enum StatusArtwork {
   private static var logos: [String: NSImage] = [:]
   static let launcherImage = NSImage(systemSymbolName: "chart.bar", accessibilityDescription: nil)
 
-  private static func logo(for provider: String) -> NSImage? {
+  static func logo(for provider: String) -> NSImage? {
     if let image = logos[provider] { return image }
     switch provider {
     case "anthropic", "openai-codex", "google-antigravity", "xai-oauth", "cursor": break
@@ -436,6 +1138,7 @@ private enum StatusArtwork {
     let key = FlutterDartProject.lookupKey(forAsset: "assets/providers/\(provider).png")
     let url = Bundle.main.bundleURL.appendingPathComponent(key)
     guard let image = NSImage(contentsOf: url) else { return nil }
+    image.isTemplate = provider != "anthropic" && provider != "google-antigravity"
     logos[provider] = image
     return image
   }

@@ -55,7 +55,7 @@ flutter build macos --debug
 open -a "$PWD/build/macos/Build/Products/Debug/AnyUsagePin.app"
 ```
 
-To open the dashboard immediately:
+To open the usage panel immediately:
 
 ```sh
 open -a "$PWD/build/macos/Build/Products/Debug/AnyUsagePin.app" --args --show
@@ -68,13 +68,17 @@ The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppIn
 ### Your first pins
 
 1. Open the menu bar app and review the accounts reported by OMP.
-2. Open **Customize / 客製化** and add a pin for an account.
+2. Click the panel's bottom **Settings / 設定** button, then open **Customize / 客製化顯示** and add a pin for an account.
 3. Choose the upper/lower row's text and bar windows independently.
 4. Review the preview, finish editing, then click **Apply / 套用** to save.
 
-The app has no Dock icon. With no pins, an app launcher provides the menu bar entry; once you add pins, any pin opens the dashboard. The dashboard hides the native macOS title and close, minimize, and zoom buttons while remaining draggable and resizable. Escape, the dashboard's own close action, clicking outside, or switching apps hides the panel without stopping polling. Quit through settings or a status item's right-click menu.
+The app has no Dock icon. With no pins, an app launcher provides the menu bar entry; once you add pins, any pin opens the usage panel. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its fixed footer provides manual refresh, snapshot/query status, and a settings button. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
 
-**OMP not found when launched from Finder?** Set its full executable path in the gear settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
+Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…**.
+
+The panel, settings, customization, and editors share a neutral palette with system-blue controls. Content uses native `NSGlassEffectView` on macOS 26 and later, with `NSVisualEffectView` material on earlier releases. The settings window retains a standard system title bar and system window background; its glass content does not replace the native window controls.
+
+**OMP not found when launched from Finder?** Open the footer settings button and set the full executable path under source settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
 
 Avoid running Debug and Release together: they use the same local settings.
 
@@ -126,7 +130,7 @@ OMP provider reports exercised with the app include **OpenAI / Codex, Claude, Go
 
 ### Refresh and data quality
 
-- Polls OMP about every five minutes, including while the dashboard is closed. Only one query runs at a time.
+- Polls OMP about every five minutes, including while the usage panel and settings window are closed. Only one query runs at a time.
 - Manual refresh performs a normal query; it does not invalidate OMP's cache or force provider requests.
 - Retains each meter's original observation time. Duplicate observations replace only older copies of the same meter; independent windows and shared pools are not added together.
 - Preserves units such as percent, USD, credits, and requests instead of synthesizing a total percentage.
@@ -204,15 +208,15 @@ Display preferences use schema v2; normalized usage snapshots retain schema v1. 
 
 ## Development and contributing
 
-The [Flutter layer](lib/) handles the dashboard, settings, previews, polling, and normalized data. A thin [Swift/AppKit layer](macos/Runner/) handles native status items and the retained dashboard panel. Brand assets are bundled; the app does not fetch provider icons at runtime.
+The [Flutter layer](lib/) owns one usage controller, settings/customization, previews, polling, and normalized data. The [Swift/AppKit layer](macos/Runner/) renders native status items and the read-only usage panel from controller projections, and hosts the single Flutter engine in a separate retained settings window. Panel dismissal is scoped to the panel, not the settings window. Brand assets are bundled; the app does not fetch provider icons at runtime.
 
 ```sh
 flutter analyze
-flutter test test/core_test.dart
+flutter test test/core_test.dart test/controller_test.dart
 flutter run -d macos
 ```
 
-The [regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings, migrations, and corrupt-file protection.
+The [core regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings, migrations, and corrupt-file protection. [Controller regressions](test/controller_test.dart) ensure hidden expired, missing, errored, and stale meters still appear in the usage panel and flag unpinned accounts in focus mode.
 
 Issues and pull requests are welcome for reproducible bugs, display improvements, and real agent integrations. For bug reports, include macOS, Flutter, and agent versions plus reproduction steps—but **not credentials, private emails, or unredacted usage payloads**. For an adapter proposal, include its token-free inventory/quota contract and the limitations listed in the roadmap.
 

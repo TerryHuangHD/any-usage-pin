@@ -1,7 +1,7 @@
 import Cocoa
 
-// The generated nib still connects this window to FlutterAppDelegate. The
-// dashboard lives in the retained panel created by AppDelegate, not this window.
+// The generated nib still connects this window to FlutterAppDelegate.
+// The Flutter settings view lives in AppDelegate's retained settings window.
 class MainFlutterWindow: NSWindow {
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }

@@ -38,7 +38,6 @@ class UsageController extends ChangeNotifier {
   UsageSnapshot? snapshot;
   bool initialized = false;
   bool loading = false;
-  bool panelVisible = false;
   String? error;
   String? storageError;
   DateTime now = DateTime.now();
@@ -115,10 +114,7 @@ class UsageController extends ChangeNotifier {
       return;
     }
     now = DateTime.now();
-    if (event == 'desktop.opened') panelVisible = true;
-    if (event == 'desktop.closed') panelVisible = false;
-    if (event == 'desktop.wake') {
-      now = DateTime.now();
+    if (event == 'desktop.wake' || event == 'desktop.refresh') {
       await refresh();
     }
     _changed();
@@ -411,6 +407,114 @@ class UsageController extends ChangeNotifier {
     };
   }
 
+  Map<String, Object?> panelView() {
+    final pinnedKeys = preferences.pins.map((pin) => pin.accountKey).toSet();
+    return {
+      'initialized': initialized,
+      'loading': loading,
+      'theme': preferences.theme.name,
+      'layout': preferences.layout.name,
+      'dense': preferences.dense,
+      'footer': loading
+          ? '向 OMP 查詢中…'
+          : snapshot == null
+          ? '等待來源資料 · 每 5 分鐘更新'
+          : '快照 ${ageText(snapshot!.generatedAt, now)} · 每 5 分鐘更新',
+      'notices': [
+        if (error != null)
+          '$error${snapshot == null ? '' : '\n保留上次已知資料；來源更新時間未重設。'}',
+        ?storageError,
+      ],
+      'emptyMessage': !initialized || loading && snapshot == null
+          ? '正在讀取 OMP 的訂閱用量…'
+          : snapshot == null
+          ? '目前沒有可顯示的 OMP 用量。請先在 OMP 登入訂閱，或到設定確認 CLI 路徑。'
+          : 'OMP 未回報可查詢的帳號；不代表所有登入的 provider 都沒有配額。',
+      'accounts': [
+        for (final account in orderedAccounts())
+          _panelAccount(account, pinnedKeys),
+      ],
+    };
+  }
+
+  Map<String, Object?> _panelAccount(
+    UsageAccount account,
+    Set<String> pinnedKeys,
+  ) {
+    final hidden =
+        preferences.accountPreferences[account.key]?.hiddenLimitIds.toSet() ??
+        const <String>{};
+    final warnings = [
+      if (account.issue != null) account.issue!,
+      if (account.disabled && account.issue == null) 'OMP 已停用此憑證；請到 OMP 處理登入。',
+      if (!account.identityKnown) '來源缺少可靠身份，不能建立持久 pin。',
+    ];
+    final limits = <Map<String, Object?>>[];
+    var needsAttention =
+        warnings.isNotEmpty || accountStale(account) || error != null;
+    for (final limit in account.limits) {
+      final value = limit.valueText(
+        LayerMode.remaining,
+        now,
+        raw: preferences.rawValues,
+      );
+      final sourceStatus = limitStatus(account, limit);
+      final status = sourceStatus == 'ok' && value == '無資料'
+          ? 'missing'
+          : sourceStatus;
+      if (status != 'ok') needsAttention = true;
+      if (hidden.contains(limit.id) && status == 'ok') continue;
+      limits.add({
+        'id': limit.id,
+        'label': '${limit.label}${limit.shared ? ' · 共用' : ''}',
+        'value': value,
+        'reset': switch (limit.resetState(now)) {
+          ResetState.unknown => '無重置時間',
+          ResetState.due => '重置期限已到 · 待來源更新',
+          ResetState.upcoming => '${limit.valueText(LayerMode.reset, now)}後重置',
+        },
+        'fraction': limit.fraction(LayerMode.remaining),
+        'status': status,
+        'warning': limit.status != 'ok'
+            ? '來源狀態：${limit.status}'
+            : status == 'stale'
+            ? '舊資料 · 待來源更新'
+            : status == 'error'
+            ? '查詢異常 · 保留已知資料'
+            : status == 'missing'
+            ? '缺少配額數值'
+            : null,
+      });
+    }
+    return {
+      'id': account.key,
+      'provider': account.provider,
+      'name': providerName(account.provider),
+      'label': accountLabel(account),
+      'plan': account.plan,
+      'organization': account.orgName,
+      'age':
+          '${accountStale(account) ? '舊資料 · ' : ''}${ageText(account.fetchedAt, now)}',
+      'pinned': pinnedKeys.contains(account.key),
+      'warning': warnings.isEmpty ? null : warnings.join('\n'),
+      'needsAttention': needsAttention || account.limits.isEmpty,
+      'emptyMessage': account.limits.isEmpty
+          ? '沒有可用的配額資料；不代表 0% 或無限制。'
+          : '此帳號的一般窗口已在顯示設定隱藏。',
+      'limits': limits,
+    };
+  }
+
+  Future<void> _publishPanel() async {
+    if (_disposed) return;
+    try {
+      await desktop.updatePanel(panelView());
+    } on Object {
+      error = 'macOS 用量面板更新失敗。請重新啟動 app。';
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   Future<void> _publishMenu() async {
     if (_disposed) return;
     try {
@@ -424,7 +528,9 @@ class UsageController extends ChangeNotifier {
   }
 
   void _changed() {
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    notifyListeners();
+    unawaited(_publishPanel());
   }
 
   @override

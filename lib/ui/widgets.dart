@@ -52,8 +52,9 @@ class ProviderMark extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: providerColor(provider).withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(size / 3),
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Center(child: SubscriptionIcon(provider, size: size * .56)),
     ),
@@ -74,12 +75,8 @@ class Surface extends StatelessWidget {
     padding: padding,
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: Theme.of(
-          context,
-        ).colorScheme.outlineVariant.withValues(alpha: .65),
-      ),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: child,
   );
@@ -95,9 +92,13 @@ class Notice extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
-      color: (error ? Colors.orange : Theme.of(context).colorScheme.primary)
-          .withValues(alpha: .08),
-      borderRadius: BorderRadius.circular(10),
+      color:
+          (error
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.primary)
+              .withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +107,7 @@ class Notice extends StatelessWidget {
           error ? Icons.warning_amber_rounded : Icons.info_outline,
           size: 16,
           color: error
-              ? Colors.orange.shade800
+              ? Theme.of(context).colorScheme.error
               : Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(width: 8),
@@ -126,12 +127,57 @@ class SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 20, bottom: 10),
+    padding: const EdgeInsets.only(top: 16, bottom: 8),
     child: Row(
       children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const Spacer(),
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
         ?trailing,
+      ],
+    ),
+  );
+}
+
+class PageHeader extends StatelessWidget {
+  const PageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.actions = const [],
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+    decoration: BoxDecoration(
+      border: Border(
+        bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ),
+    child: Row(
+      children: [
+        if (leading != null) ...[leading!, const SizedBox(width: 10)],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ],
+          ),
+        ),
+        if (actions.isNotEmpty) ...[const SizedBox(width: 12), ...actions],
       ],
     ),
   );
@@ -161,6 +207,9 @@ class PinPreview extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

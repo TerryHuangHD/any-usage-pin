@@ -16,7 +16,7 @@ class DesktopBridge {
   Future<void> updatePins(List<Map<String, Object?>> pins) =>
       _channel.invokeMethod<void>('menu.update', {'pins': pins});
 
-  Future<void> show() => _channel.invokeMethod<void>('panel.show');
-  Future<void> hide() => _channel.invokeMethod<void>('panel.hide');
+  Future<void> updatePanel(Map<String, Object?> panel) =>
+      _channel.invokeMethod<void>('panel.update', panel);
   Future<void> quit() => _channel.invokeMethod<void>('app.quit');
 }
