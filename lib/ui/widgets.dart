@@ -78,7 +78,7 @@ class Surface extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
-    child: child,
+    child: Material(type: MaterialType.transparency, child: child),
   );
 }
 

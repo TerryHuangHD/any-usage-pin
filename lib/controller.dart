@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'core.dart';
 import 'native_bridge.dart';
@@ -44,6 +45,9 @@ class UsageController extends ChangeNotifier {
   DateTime? lastRequest;
   DateTime? nextRefresh;
   bool preferencesWritable = true;
+  LaunchAtLoginStatus? launchAtLoginStatus;
+  String? launchAtLoginError;
+  bool changingLaunchAtLogin = false;
   final Map<String, UsageSnapshot> _cache = {};
   final Map<String, UsageAccount> _lastKnownAccounts = {};
   AgentAdapter? _adapter;
@@ -65,6 +69,7 @@ class UsageController extends ChangeNotifier {
       preferencesWritable = false;
       storageError = '無法讀取顯示設定。原檔案未覆寫；請修復檔案或明確重設設定。';
     }
+    await reloadLaunchAtLogin();
     if (!agentIds.contains(preferences.selectedAgent)) {
       storageError = '此版本僅支援 OMP；儲存的 agent 目前不可用，未自動切換。';
       initialized = true;
@@ -117,7 +122,57 @@ class UsageController extends ChangeNotifier {
     if (event == 'desktop.wake' || event == 'desktop.refresh') {
       await refresh();
     }
+    if (event == 'desktop.settingsOpened') await reloadLaunchAtLogin();
     _changed();
+  }
+
+  Future<void> reloadLaunchAtLogin() async {
+    if (changingLaunchAtLogin || _disposed) return;
+    try {
+      launchAtLoginStatus = await desktop.launchAtLoginStatus();
+      launchAtLoginError = null;
+    } catch (failure) {
+      launchAtLoginStatus = null;
+      launchAtLoginError = _loginItemError(failure);
+    }
+    _changed();
+  }
+
+  Future<bool> setLaunchAtLogin(bool enabled) async {
+    if (changingLaunchAtLogin || _disposed) return false;
+    changingLaunchAtLogin = true;
+    launchAtLoginError = null;
+    _changed();
+    var saved = false;
+    try {
+      launchAtLoginStatus = await desktop.setLaunchAtLogin(enabled);
+      saved = true;
+    } catch (failure) {
+      launchAtLoginError = _loginItemError(failure);
+      try {
+        launchAtLoginStatus = await desktop.launchAtLoginStatus();
+      } catch (_) {
+        launchAtLoginStatus = null;
+      }
+    } finally {
+      changingLaunchAtLogin = false;
+      _changed();
+    }
+    return saved;
+  }
+
+  Future<void> openLoginItemSettings() async {
+    try {
+      await desktop.openLoginItemSettings();
+    } catch (failure) {
+      launchAtLoginError = _loginItemError(failure);
+      _changed();
+    }
+  }
+
+  String _loginItemError(Object failure) {
+    final detail = failure is PlatformException ? failure.message : null;
+    return '無法讀取或變更開機自動啟動。${detail ?? '請稍後重試。'}';
   }
 
   void _remember(UsageSnapshot value) {
@@ -133,6 +188,7 @@ class UsageController extends ChangeNotifier {
     final generation = _generation;
     final adapter = _adapter!;
     _pollTimer?.cancel();
+    nextRefresh = null;
     loading = true;
     lastRequest = DateTime.now();
     error = null;
@@ -161,14 +217,18 @@ class UsageController extends ChangeNotifier {
       if (!_disposed && generation == _generation) {
         loading = false;
         _inFlight = null;
-        nextRefresh = DateTime.now().add(const Duration(minutes: 5));
-        _pollTimer = Timer(const Duration(minutes: 5), () {
-          unawaited(refresh());
-        });
+        _scheduleRefresh();
         _changed();
         await _publishMenu();
       }
     }
+  }
+
+  void _scheduleRefresh() {
+    _pollTimer?.cancel();
+    final interval = Duration(minutes: preferences.refreshIntervalMinutes);
+    nextRefresh = DateTime.now().add(interval);
+    _pollTimer = Timer(interval, () => unawaited(refresh()));
   }
 
   String _safeMessage(Object failure) {
@@ -206,6 +266,8 @@ class UsageController extends ChangeNotifier {
     final sourceChanged =
         next.selectedAgent != preferences.selectedAgent ||
         next.ompPath != preferences.ompPath;
+    final intervalChanged =
+        next.refreshIntervalMinutes != preferences.refreshIntervalMinutes;
     preferences = next;
     preferencesWritable = true;
     storageError = null;
@@ -218,6 +280,8 @@ class UsageController extends ChangeNotifier {
       snapshot = _cache[next.selectedAgent];
       error = null;
       _createAdapter();
+    } else if (intervalChanged && !loading && _adapter != null) {
+      _scheduleRefresh();
     }
     _changed();
     await _publishMenu();
@@ -418,8 +482,8 @@ class UsageController extends ChangeNotifier {
       'footer': loading
           ? '向 OMP 查詢中…'
           : snapshot == null
-          ? '等待來源資料 · 每 5 分鐘更新'
-          : '快照 ${ageText(snapshot!.generatedAt, now)} · 每 5 分鐘更新',
+          ? '等待來源資料 · 每 ${preferences.refreshIntervalMinutes} 分鐘更新'
+          : '快照 ${ageText(snapshot!.generatedAt, now)} · 每 ${preferences.refreshIntervalMinutes} 分鐘更新',
       'notices': [
         if (error != null)
           '$error${snapshot == null ? '' : '\n保留上次已知資料；來源更新時間未重設。'}',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controller.dart';
+import '../native_bridge.dart';
 import 'customize.dart';
 import 'widgets.dart';
 
@@ -58,6 +59,40 @@ class _SettingsPageState extends State<SettingsPage> {
             widget.controller.storageError ??
             widget.controller.error ??
             '設定儲存失敗。';
+      }
+    });
+  }
+
+  Future<void> _setLaunchAtLogin(bool enabled) async {
+    final saved = await widget.controller.setLaunchAtLogin(enabled);
+    if (!mounted || !saved) return;
+    setState(() {
+      _savedMessage =
+          widget.controller.launchAtLoginStatus ==
+              LaunchAtLoginStatus.requiresApproval
+          ? '已登記開機自動啟動；請在系統設定中允許。'
+          : enabled
+          ? '已開啟開機自動啟動。'
+          : '已關閉開機自動啟動。';
+    });
+  }
+
+  Future<void> _setRefreshInterval(int minutes) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+      _savedMessage = null;
+    });
+    final saved = await widget.controller.applyPreferences(
+      widget.controller.preferences.copyWith(refreshIntervalMinutes: minutes),
+    );
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (saved) {
+        _savedMessage = '更新頻率已儲存：每 $minutes 分鐘。';
+      } else {
+        _error = widget.controller.storageError ?? '更新頻率儲存失敗，變更未套用。';
       }
     });
   }
@@ -210,6 +245,85 @@ class _SettingsPageState extends State<SettingsPage> {
                             ],
                           ),
                         ),
+                        const SectionHeading('App 行為 · 變更即儲存'),
+                        Surface(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('開機自動啟動'),
+                                subtitle: Text(
+                                  controller.launchAtLoginStatus ==
+                                          LaunchAtLoginStatus.requiresApproval
+                                      ? '等待系統允許；請到登入項目設定開啟。'
+                                      : '登入此 Mac 時自動啟動，並在選單列背景執行。',
+                                ),
+                                value:
+                                    controller.launchAtLoginStatus != null &&
+                                    controller.launchAtLoginStatus !=
+                                        LaunchAtLoginStatus.disabled,
+                                onChanged:
+                                    _saving ||
+                                        controller.changingLaunchAtLogin ||
+                                        controller.launchAtLoginStatus == null
+                                    ? null
+                                    : _setLaunchAtLogin,
+                              ),
+                              if (controller.launchAtLoginError != null) ...[
+                                Notice(
+                                  controller.launchAtLoginError!,
+                                  error: true,
+                                ),
+                                TextButton(
+                                  onPressed: controller.changingLaunchAtLogin
+                                      ? null
+                                      : controller.reloadLaunchAtLogin,
+                                  child: const Text('重新讀取啟動設定'),
+                                ),
+                              ],
+                              if (controller.launchAtLoginStatus ==
+                                  LaunchAtLoginStatus.requiresApproval)
+                                TextButton(
+                                  onPressed: controller.openLoginItemSettings,
+                                  child: const Text('開啟系統登入項目設定'),
+                                ),
+                              const Divider(height: 16),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Refresh 頻率'),
+                                subtitle: const Text('1～10 分鐘；變更後立即套用背景排程。'),
+                                trailing: DropdownButton<int>(
+                                  value: controller
+                                      .preferences
+                                      .refreshIntervalMinutes,
+                                  dropdownColor: Theme.of(
+                                    context,
+                                  ).colorScheme.surface,
+                                  items: [
+                                    for (
+                                      var minutes = 1;
+                                      minutes <= 10;
+                                      minutes++
+                                    )
+                                      DropdownMenuItem(
+                                        value: minutes,
+                                        child: Text('$minutes 分鐘'),
+                                      ),
+                                  ],
+                                  onChanged:
+                                      _saving || !controller.preferencesWritable
+                                      ? null
+                                      : (value) {
+                                          if (value != null) {
+                                            _setRefreshInterval(value);
+                                          }
+                                        },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SectionHeading('資料與 app'),
                         Surface(
                           padding: EdgeInsets.zero,
@@ -276,14 +390,16 @@ class _SettingsPageState extends State<SettingsPage> {
                                   size: 18,
                                 ),
                                 title: const Text('背景更新與隱私'),
-                                subtitle: const Text('每 5 分鐘更新 · 僅本機儲存'),
+                                subtitle: Text(
+                                  '每 ${controller.preferences.refreshIntervalMinutes} 分鐘更新 · 僅本機儲存',
+                                ),
                                 children: [
                                   Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        '背景每 5 分鐘執行一次 omp usage --json；面板及設定視窗關閉仍會更新。正常刷新不清除 OMP 快取。CLI 可能依自身規則刷新 OAuth／更新快取，但本 app 不讀取或保存 bearer token。',
+                                      Text(
+                                        '背景每 ${controller.preferences.refreshIntervalMinutes} 分鐘執行一次 omp usage --json；面板及設定視窗關閉仍會更新。正常刷新不清除 OMP 快取。CLI 可能依自身規則刷新 OAuth／更新快取，但本 app 不讀取或保存 bearer token。',
                                       ),
                                       const SizedBox(height: 10),
                                       const Text(

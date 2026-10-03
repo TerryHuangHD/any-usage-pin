@@ -1,6 +1,7 @@
 import Cocoa
 import CoreFoundation
 import FlutterMacOS
+import ServiceManagement
 
 private final class GlassSurface: NSView {
   let content = NSView()
@@ -873,11 +874,91 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       panel?.appearance = appearance
       usageController?.update(arguments)
       result(nil)
+    case "app.launchAtLoginStatus":
+      do {
+        result(try launchAtLoginStatus())
+      } catch {
+        result(FlutterError(code: "login_item", message: error.localizedDescription, details: nil))
+      }
+    case "app.setLaunchAtLogin":
+      guard let arguments = call.arguments as? [String: Any],
+            let enabled = arguments["enabled"] as? Bool else {
+        result(FlutterError(code: "invalid_arguments", message: "Expected an enabled flag.", details: nil))
+        return
+      }
+      do {
+        try setLaunchAtLogin(enabled)
+        result(try launchAtLoginStatus())
+      } catch {
+        result(FlutterError(code: "login_item", message: error.localizedDescription, details: nil))
+      }
+    case "app.openLoginItemSettings":
+      if #available(macOS 13.0, *) {
+        SMAppService.openSystemSettingsLoginItems()
+      }
+      result(nil)
     case "app.quit":
       result(nil)
       NSApp.terminate(nil)
     default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private var legacyLoginItemURL: URL {
+    FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+      .appendingPathComponent("\(Bundle.main.bundleIdentifier!).plist")
+  }
+
+  private func launchAtLoginStatus() throws -> String {
+    if #available(macOS 13.0, *) {
+      switch SMAppService.mainApp.status {
+      case .enabled: return "enabled"
+      case .requiresApproval: return "requiresApproval"
+      case .notRegistered, .notFound: break
+      @unknown default:
+        throw NSError(domain: "AnyUsagePin.LoginItem", code: 2, userInfo: [
+          NSLocalizedDescriptionKey: "無法辨識系統登入項目狀態。",
+        ])
+      }
+    }
+    return FileManager.default.fileExists(atPath: legacyLoginItemURL.path)
+      ? "enabled" : "disabled"
+  }
+
+  private func setLaunchAtLogin(_ enabled: Bool) throws {
+    let fileManager = FileManager.default
+    let legacyURL = legacyLoginItemURL
+    if #available(macOS 13.0, *) {
+      let service = SMAppService.mainApp
+      if enabled {
+        if service.status != .enabled && service.status != .requiresApproval {
+          try service.register()
+        }
+      } else if service.status == .enabled || service.status == .requiresApproval {
+        try service.unregister()
+      }
+      // Remove the macOS 12 registration when changing the setting after an OS upgrade.
+      if fileManager.fileExists(atPath: legacyURL.path) {
+        try fileManager.removeItem(at: legacyURL)
+      }
+    } else if enabled {
+      // macOS 12 predates SMAppService. This user agent opens the app once at login.
+      let plist: [String: Any] = [
+        "Label": Bundle.main.bundleIdentifier!,
+        "ProgramArguments": ["/usr/bin/open", "-g", Bundle.main.bundlePath],
+        "RunAtLoad": true,
+        "LaunchOnlyOnce": true,
+      ]
+      let data = try PropertyListSerialization.data(
+        fromPropertyList: plist, format: .xml, options: 0)
+      try fileManager.createDirectory(
+        at: legacyURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try data.write(to: legacyURL, options: .atomic)
+      try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: legacyURL.path)
+    } else if fileManager.fileExists(atPath: legacyURL.path) {
+      try fileManager.removeItem(at: legacyURL)
     }
   }
 
@@ -1036,6 +1117,12 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       return true
     }
     return false
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    guard ready, let window = notification.object as? NSWindow,
+          window === settingsWindow else { return }
+    desktopChannel?.invokeMethod("desktop.settingsOpened", arguments: nil)
   }
 
   func windowDidResignKey(_ notification: Notification) {

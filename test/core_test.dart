@@ -928,6 +928,7 @@ void main() {
           _report(account: 'two', email: 'two@example.invalid'),
         ]).accounts;
         final first = Preferences(
+          refreshIntervalMinutes: 1,
           pins: [
             PinPreference(
               id: 'pin-one',
@@ -981,9 +982,17 @@ void main() {
           theme: ThemeChoice.dark,
           layout: PanelLayout.table,
         );
+        await AppStorage(directory: directory).savePreferences(first);
+        expect(
+          (await AppStorage(
+            directory: directory,
+          ).loadPreferences()).refreshIntervalMinutes,
+          1,
+        );
+        final slowerRefresh = edited.copyWith(refreshIntervalMinutes: 10);
         final storage = AppStorage(directory: directory);
         final firstSave = storage.savePreferences(first);
-        final laterSave = storage.savePreferences(edited);
+        final laterSave = storage.savePreferences(slowerRefresh);
         await Future.wait([firstSave, laterSave]);
         final restored = await AppStorage(
           directory: directory,
@@ -1015,6 +1024,7 @@ void main() {
         expect(restored.rawValues, isTrue);
         expect(restored.theme, ThemeChoice.dark);
         expect(restored.layout, PanelLayout.table);
+        expect(restored.refreshIntervalMinutes, 10);
         final temporaryFiles = await directory
             .list()
             .where((entry) => entry.path.endsWith('.tmp'))
@@ -1085,6 +1095,23 @@ void main() {
         expect(await file.readAsString(), original);
       },
     );
+
+    test('invalid refresh intervals preserve the original settings', () async {
+      final file = File('${directory.path}/preferences.json');
+      for (final interval in [-1, 0, 11, 1.5, '1']) {
+        final json = Preferences().toJson()
+          ..['refreshIntervalMinutes'] = interval;
+        final original = jsonEncode(json);
+        await file.writeAsString(original);
+        final storage = AppStorage(directory: directory);
+        await expectLater(storage.loadPreferences(), throwsA(isA<Exception>()));
+        await expectLater(
+          storage.savePreferences(Preferences(refreshIntervalMinutes: 1)),
+          throwsA(isA<Exception>()),
+        );
+        expect(await file.readAsString(), original);
+      }
+    });
 
     test(
       'explicit reset preserves the damaged file and permits subsequent edits',

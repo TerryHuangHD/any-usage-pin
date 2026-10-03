@@ -494,6 +494,7 @@ class Preferences {
   Preferences({
     this.selectedAgent = 'omp',
     this.ompPath = '',
+    this.refreshIntervalMinutes = 5,
     this.dense = false,
     this.rawValues = false,
     this.layout = PanelLayout.cards,
@@ -503,9 +504,19 @@ class Preferences {
     List<String> accountOrder = const [],
   }) : pins = List.unmodifiable(pins),
        accountPreferences = Map.unmodifiable(accountPreferences),
-       accountOrder = List.unmodifiable(accountOrder);
+       accountOrder = List.unmodifiable(accountOrder) {
+    if (refreshIntervalMinutes < 1 || refreshIntervalMinutes > 10) {
+      throw RangeError.range(
+        refreshIntervalMinutes,
+        1,
+        10,
+        'refreshIntervalMinutes',
+      );
+    }
+  }
 
   final String selectedAgent, ompPath;
+  final int refreshIntervalMinutes;
   final bool dense, rawValues;
   final PanelLayout layout;
   final ThemeChoice theme;
@@ -516,6 +527,7 @@ class Preferences {
   Preferences copyWith({
     String? selectedAgent,
     String? ompPath,
+    int? refreshIntervalMinutes,
     bool? dense,
     bool? rawValues,
     PanelLayout? layout,
@@ -526,6 +538,8 @@ class Preferences {
   }) => Preferences(
     selectedAgent: selectedAgent ?? this.selectedAgent,
     ompPath: ompPath ?? this.ompPath,
+    refreshIntervalMinutes:
+        refreshIntervalMinutes ?? this.refreshIntervalMinutes,
     dense: dense ?? this.dense,
     rawValues: rawValues ?? this.rawValues,
     layout: layout ?? this.layout,
@@ -543,6 +557,7 @@ class Preferences {
     return Preferences(
       selectedAgent: _optionalString(json, 'selectedAgent') ?? 'omp',
       ompPath: _optionalString(json, 'ompPath') ?? '',
+      refreshIntervalMinutes: _integer(json, 'refreshIntervalMinutes', 5),
       dense: _bool(json, 'dense', false),
       rawValues: _bool(json, 'rawValues', false),
       layout: _enumValue(PanelLayout.values, json['layout'], PanelLayout.cards),
@@ -565,6 +580,7 @@ class Preferences {
     'schemaVersion': 2,
     'selectedAgent': selectedAgent,
     'ompPath': ompPath,
+    'refreshIntervalMinutes': refreshIntervalMinutes,
     'dense': dense,
     'rawValues': rawValues,
     'layout': layout.name,

@@ -76,6 +76,11 @@ The app has no Dock icon. All configured pins share one menu bar item, displayed
 
 Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…**.
 
+Under **App behavior / App 行為**, two settings save immediately without applying or discarding source-form edits:
+
+- **Launch at login / 開機自動啟動:** off until enabled. The switch reads the actual system registration rather than a separate JSON flag. On macOS 13+, it uses `SMAppService.mainApp`; if approval is required, settings shows a pending state and a button to open the system Login Items page. Returning to the settings window rereads the system state. On macOS 12, it installs/removes this app's user LaunchAgent at `~/Library/LaunchAgents/com.terryhuanghd.AnyUsagePin.plist`.
+- **Refresh frequency / Refresh 頻率:** choose any whole minute from **1 through 10**, with **5 minutes** retained as the default. The choice survives relaunch and immediately replaces the waiting background timer. An already-running query finishes normally, then schedules the next query using the latest interval.
+
 The panel, settings, customization, and editors share a neutral palette with system-blue controls. Content uses native `NSGlassEffectView` on macOS 26 and later, with `NSVisualEffectView` material on earlier releases. The settings window retains a standard system title bar and system window background; its glass content does not replace the native window controls.
 
 **OMP not found when launched from Finder?** Open the footer settings button and set the full executable path under source settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
@@ -130,7 +135,7 @@ OMP provider reports exercised with the app include **OpenAI / Codex, Claude, Go
 
 ### Refresh and data quality
 
-- Polls OMP about every five minutes, including while the usage panel and settings window are closed. Only one query runs at a time.
+- Polls OMP at the configured 1–10 minute interval (five minutes by default), measured from the end of the previous query, including while the usage panel and settings window are closed. Only one query runs at a time.
 - Manual refresh performs a normal query; it does not invalidate OMP's cache or force provider requests.
 - Retains each meter's original observation time. Duplicate observations replace only older copies of the same meter; independent windows and shared pools are not added together.
 - Preserves units such as percent, USD, credits, and requests instead of synthesizing a total percentage.
@@ -159,7 +164,7 @@ The original product design also identified these options for further discussion
 - Provider/account/resource ordering and grouping, reset-time sorting, and remaining-quota sorting only within comparable resource types.
 - Absolute reset times alongside countdowns.
 - Whole-account hiding with visible error summaries, rather than hiding authentication or refresh problems.
-- Per-agent appearance overrides and launch-behavior controls.
+- Per-agent appearance overrides.
 
 Cloud sync, app-owned cloud accounts, usage proxying, token/cost history analytics, and notifications are **outside the committed scope**. Cross-agent account merging and profile switching are not implied by multi-agent support.
 
@@ -202,7 +207,7 @@ The storage directory uses permissions `0700`, files use `0600`, and writes are 
 
 **Upgrading from Cross Agent Usage:** quit the old app before launching AnyUsagePin. If `Application Support/AnyUsagePin` does not exist, the first storage operation moves the previous `Application Support/Cross Agent Usage` directory to the new name, preserving pins, aliases, preferences, snapshots, and recovery backups. A pre-existing AnyUsagePin directory takes precedence; the app does not merge or overwrite either directory. A legacy path that is not a real directory is rejected rather than followed or replaced.
 
-Display preferences use schema v2; normalized usage snapshots retain schema v1. Legacy v1 preferences migrate in memory, preserving the visible text/quota-bar configuration. Old icon-only pins do not enable their previously hidden channels or labels, and old reset text does not automatically gain a countdown bar. Loading does not rewrite the original file; the next Apply saves the new preference format.
+App preferences use schema v2; normalized usage snapshots retain schema v1. Preferences without a refresh interval retain the five-minute default. Legacy v1 preferences migrate in memory, preserving the visible text/quota-bar configuration. Old icon-only pins do not enable their previously hidden channels or labels, and old reset text does not automatically gain a countdown bar. Loading does not rewrite the original file; the next preference change saves the new preference format.
 
 </details>
 
@@ -216,7 +221,7 @@ flutter test test/core_test.dart test/controller_test.dart
 flutter run -d macos
 ```
 
-The [core regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings, migrations, and corrupt-file protection. [Controller regressions](test/controller_test.dart) ensure hidden expired, missing, errored, and stale meters still appear in the usage panel and flag unpinned accounts in focus mode.
+The [core regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings (including the 1- and 10-minute refresh boundaries), migrations, and corrupt-file protection, including invalid refresh intervals. [Controller regressions](test/controller_test.dart) ensure hidden expired, missing, errored, and stale meters still appear in the usage panel and flag unpinned accounts in focus mode.
 
 Issues and pull requests are welcome for reproducible bugs, display improvements, and real agent integrations. For bug reports, include macOS, Flutter, and agent versions plus reproduction steps—but **not credentials, private emails, or unredacted usage payloads**. For an adapter proposal, include its token-free inventory/quota contract and the limitations listed in the roadmap.
 
