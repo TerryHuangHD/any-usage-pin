@@ -27,7 +27,15 @@ An account signed in to OMP can appear here even if it is not signed in to that 
 
 ## Quick start
 
-### Requirements
+### Install the macOS app
+
+1. Download the **macOS universal DMG** and `SHA256SUMS` from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest).
+2. Open the DMG and drag **AnyUsagePin.app** to **Applications**.
+3. Open AnyUsagePin from Applications. It runs in the menu bar, not the Dock.
+
+The app requires **macOS 12.0 or later** and **OMP installed and authenticated**; Flutter and Xcode are not needed to run a downloaded release. The universal app contains Apple Silicon and Intel binaries. macOS may still show its normal first-launch confirmation for a downloaded app.
+
+### Build from source
 
 - **macOS 12.0 or later.**
 - **Flutter with Dart 3.12.2 or later within the supported 3.x range**, plus Xcode and the Flutter macOS toolchain. The project has been built with Flutter 3.44.9 / Dart 3.12.2.
@@ -39,21 +47,21 @@ First, confirm that OMP can report your usage:
 omp usage --json
 ```
 
-Then clone this repository and run these commands from its root:
+For a local development build without company signing credentials, clone this repository and run these commands from its root:
 
 ```sh
 flutter pub get
-flutter build macos --release
-open -a "$PWD/build/macos/Build/Products/Release/AnyUsagePin.app"
+flutter build macos --debug
+open -a "$PWD/build/macos/Build/Products/Debug/AnyUsagePin.app"
 ```
 
 To open the dashboard immediately:
 
 ```sh
-open -a "$PWD/build/macos/Build/Products/Release/AnyUsagePin.app" --args --show
+open -a "$PWD/build/macos/Build/Products/Debug/AnyUsagePin.app" --args --show
 ```
 
-The verified artifact is a **local Release build**; Developer ID signing and notarized distribution have not been verified.
+Release builds use **Developer ID Application: LI-SHENG TECHNOLOGY CO., LTD. (V6C4PTHC4J)** with Hardened Runtime and secure signing timestamps. The universal app and DMG have both passed Apple notarization and ticket stapling; Gatekeeper identifies them as **Notarized Developer ID**. The final DMG has been mounted and its app exercised on Apple Silicon.
 
 The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppInfo.xcconfig](macos/Runner/Configs/AppInfo.xcconfig). It is independent of the app's local storage directory, so changing the identifier does not reset existing pins or preferences.
 
@@ -207,6 +215,33 @@ flutter run -d macos
 The [regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings, migrations, and corrupt-file protection.
 
 Issues and pull requests are welcome for reproducible bugs, display improvements, and real agent integrations. For bug reports, include macOS, Flutter, and agent versions plus reproduction steps—but **not credentials, private emails, or unredacted usage payloads**. For an adapter proposal, include its token-free inventory/quota contract and the limitations listed in the roadmap.
+
+### Signed DMG releases
+
+Release signing requires the company's Developer ID Application certificate **and private key** in an unlocked Keychain. Debug builds remain ad-hoc signed. The [release script](scripts/release_macos.py) follows the AppToGo-Launcher `release-macos` signing order: inner Flutter frameworks first, app last, with Hardened Runtime and secure timestamps. It checks the requested identity and `arm64` / `x86_64` binaries and rejects a final app signature with `com.apple.security.get-task-allow` enabled.
+
+To verify signing and packaging locally without notarization:
+
+```sh
+python3 scripts/release_macos.py --prepare-only
+```
+
+This produces an explicitly named `*-unnotarized.dmg`. **Do not publish it as a formal release.**
+
+For a notarized release, reuse the existing `apptogo-notarytool-profile` authorized for Team `V6C4PTHC4J`:
+
+```sh
+python3 scripts/release_macos.py --notary-profile apptogo-notarytool-profile
+```
+
+On a machine without that profile, create a new one in your own Terminal with `xcrun notarytool store-credentials PROFILE_NAME --team-id V6C4PTHC4J`, then pass its name using `--notary-profile`. The command prompts for the Apple ID and app-specific password; do not put passwords or private API keys in the repository or chat.
+
+An existing App Store Connect API key can also be stored using `notarytool store-credentials`; pass only the resulting profile name to the release script. Use `--keychain /path/to/keychain` when the profile is not in the default Keychain.
+
+The formal path submits the signed app ZIP, requires Apple's `Accepted` status, and staples the app before building a drag-to-Applications DMG. It then signs, notarizes, and staples the DMG, validates both tickets, and assesses Gatekeeper policy. Failed submissions preserve Apple's response and diagnostic log rather than producing a release-ready result.
+
+Outputs are placed in a unique directory under `build/releases/`: the app, DMG, notarization responses, and `SHA256SUMS`. Publish only the notarized DMG and its checksum; keep Keychain credentials and local diagnostic files private. Intel binaries are included, but runtime smoke verification to date has been on Apple Silicon.
+
 
 ### Brand assets and attribution
 
