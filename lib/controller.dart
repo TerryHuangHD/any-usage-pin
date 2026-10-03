@@ -391,9 +391,14 @@ class UsageController extends ChangeNotifier {
         LayerMode.used => '已用配額',
         LayerMode.reset => '重置倒數',
       };
+      final resetNote =
+          metric.mode == LayerMode.reset &&
+              limit?.resetState(now) == ResetState.notStarted
+          ? ' · 尚未開始計時'
+          : '';
       tooltip.add(
         '$row · $channel · ${limit?.label ?? '原窗口不可用'} · $mode：'
-        '$value${status == 'ok' ? '' : ' · $status'}'
+        '$value$resetNote${status == 'ok' ? '' : ' · $status'}'
         ' · ${ageText(limit?.fetchedAt ?? account?.fetchedAt, now)}',
       );
     }
@@ -415,7 +420,7 @@ class UsageController extends ChangeNotifier {
         status = channelStatus(
           limit,
           textMetric.mode == LayerMode.reset
-              ? limit?.resetsAt != null
+              ? limit != null && limit.resetState(now) != ResetState.unknown
               : text != '無資料',
         );
         describe(row, '文字', textMetric, limit, text, status);
@@ -535,6 +540,8 @@ class UsageController extends ChangeNotifier {
         'value': value,
         'reset': switch (limit.resetState(now)) {
           ResetState.unknown => '無重置時間',
+          ResetState.notStarted =>
+            '尚未開始計時 · ${limit.valueText(LayerMode.reset, now)}',
           ResetState.due => '重置期限已到 · 待來源更新',
           ResetState.upcoming => '${limit.valueText(LayerMode.reset, now)}後重置',
         },

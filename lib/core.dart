@@ -4,7 +4,7 @@ import 'dart:io';
 
 enum LayerMode { remaining, used, reset }
 
-enum ResetState { unknown, upcoming, due }
+enum ResetState { unknown, notStarted, upcoming, due }
 
 enum PanelLayout { cards, table, focus }
 
@@ -20,6 +20,7 @@ class UsageLimit {
     this.sharedGroup,
     this.shared = false,
     this.resetsAt,
+    this.resetNotStarted = false,
     this.fetchedAt,
     this.duration,
     this.used,
@@ -32,15 +33,20 @@ class UsageLimit {
   final String id, label, unit, status;
   final String? windowId, sharedGroup;
   final bool shared;
+  final bool resetNotStarted;
   final DateTime? fetchedAt, resetsAt;
   final Duration? duration;
   final double? used, remaining, limit, usedFraction, remainingFraction;
 
-  ResetState resetState(DateTime now) => resetsAt == null
-      ? ResetState.unknown
-      : now.isBefore(resetsAt!)
-      ? ResetState.upcoming
-      : ResetState.due;
+  ResetState resetState(DateTime now) {
+    final reset = resetsAt;
+    if (reset != null) {
+      return now.isBefore(reset) ? ResetState.upcoming : ResetState.due;
+    }
+    return resetNotStarted && (duration?.inMilliseconds ?? 0) > 0
+        ? ResetState.notStarted
+        : ResetState.unknown;
+  }
 
   double? fraction(LayerMode mode) {
     if (mode == LayerMode.reset) return null;
@@ -65,7 +71,8 @@ class UsageLimit {
     if (mode != LayerMode.reset) return fraction(mode);
     final reset = resetsAt;
     final durationMs = duration?.inMilliseconds;
-    if (reset == null || durationMs == null || durationMs <= 0) return null;
+    if (durationMs == null || durationMs <= 0) return null;
+    if (reset == null) return resetNotStarted ? 1 : null;
     return (reset.difference(now).inMilliseconds / durationMs)
         .clamp(0.0, 1.0)
         .toDouble();
@@ -85,7 +92,9 @@ class UsageLimit {
       final state = resetState(now);
       if (state == ResetState.unknown) return '無重置時間';
       if (state == ResetState.due) return '待更新';
-      final difference = resetsAt!.difference(now);
+      final difference = state == ResetState.notStarted
+          ? duration!
+          : resetsAt!.difference(now);
       if (difference.inSeconds < 60) return '<1分';
       final minutes = (difference.inSeconds / 60).ceil();
       if (minutes < 60) return '$minutes分';
@@ -135,6 +144,7 @@ class UsageLimit {
     shared: _bool(json, 'shared', false),
     fetchedAt: _storedDate(json['fetchedAt']),
     resetsAt: _storedDate(json['resetsAt']),
+    resetNotStarted: _bool(json, 'resetNotStarted', false),
     duration: _duration(json['durationMs']),
     used: _storedNumber(json, 'used'),
     remaining: _storedNumber(json, 'remaining'),
@@ -153,6 +163,7 @@ class UsageLimit {
     'shared': shared,
     'fetchedAt': fetchedAt?.toUtc().toIso8601String(),
     'resetsAt': resetsAt?.toUtc().toIso8601String(),
+    'resetNotStarted': resetNotStarted,
     'durationMs': duration?.inMilliseconds,
     'used': used,
     'remaining': remaining,
@@ -1006,6 +1017,7 @@ UsageLimit _ompLimit(Map<String, dynamic> json, DateTime? fetchedAt) {
     shared: scope['shared'] == true,
     fetchedAt: fetchedAt,
     resetsAt: _epochMilliseconds(window['resetsAt']),
+    resetNotStarted: window['resetsAt'] == null,
     duration:
         milliseconds != null &&
             milliseconds >= 0 &&

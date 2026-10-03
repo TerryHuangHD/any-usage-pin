@@ -516,9 +516,60 @@ void main() {
     );
 
     test(
+      'OMP unstarted five-hour windows retain full time across clock ticks and caching',
+      () {
+        for (final explicitNull in [false, true]) {
+          final raw = _limit();
+          if (explicitNull) {
+            raw['window'] = <String, dynamic>{
+              ...raw['window'] as Map<String, dynamic>,
+              'resetsAt': null,
+            };
+          }
+          final snapshot = _snapshot([
+            _report(limits: [raw]),
+          ]);
+          final restored = UsageSnapshot.fromJson(snapshot.toJson());
+          for (final limit in [
+            snapshot.accounts.single.limits.single,
+            restored.accounts.single.limits.single,
+          ]) {
+            for (final now in [
+              _observed,
+              _observed.add(const Duration(seconds: 30)),
+              _observed.add(const Duration(days: 1)),
+            ]) {
+              expect(limit.valueText(LayerMode.reset, now), '5時0分');
+              expect(limit.barFraction(LayerMode.reset, now), 1);
+              expect(limit.fraction(LayerMode.remaining), .75);
+              expect(limit.resetsAt, isNull);
+            }
+          }
+        }
+      },
+    );
+
+    test('malformed reset times do not imply an unstarted window', () {
+      for (final reset in ['tomorrow', true, double.infinity]) {
+        final raw = _limit();
+        (raw['window'] as Map)['resetsAt'] = reset;
+        final snapshot = _snapshot([
+          _report(limits: [raw]),
+        ]);
+        final restored = UsageSnapshot.fromJson(snapshot.toJson());
+        for (final limit in [
+          snapshot.accounts.single.limits.single,
+          restored.accounts.single.limits.single,
+        ]) {
+          expect(limit.barFraction(LayerMode.reset, _observed), isNull);
+          expect(limit.resetState(_observed), ResetState.unknown);
+        }
+      }
+    });
+
+    test(
       'reset state crosses its deadline without minting a fresh allowance',
       () {
-        final missing = _snapshot([_report()]).accounts.single.limits.single;
         final limit = _snapshot([
           _report(
             limits: [
@@ -526,7 +577,6 @@ void main() {
             ],
           ),
         ]).accounts.single.limits.single;
-        expect(missing.resetState(_observed), ResetState.unknown);
         expect(limit.resetState(_observed), ResetState.upcoming);
         expect(
           limit.resetState(
@@ -592,7 +642,7 @@ void main() {
             _limit(id: 'missing', resetsAt: reset, durationMs: null),
             _limit(id: 'zero', resetsAt: reset, durationMs: 0),
             _limit(id: 'negative', resetsAt: reset, durationMs: -1),
-            _limit(id: 'no-reset'),
+            _limit(id: 'no-reset-missing-duration', durationMs: null),
           ],
         ),
       ]).accounts.single.limits;
@@ -607,7 +657,6 @@ void main() {
         );
       }
       expect(limits.first.duration, isNull);
-      expect(limits.last.duration, const Duration(hours: 5));
       final negativeDuration = UsageLimit(
         id: 'negative-duration',
         label: 'Negative duration',

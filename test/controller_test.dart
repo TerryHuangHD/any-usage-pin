@@ -39,6 +39,75 @@ void main() {
         as Map<String, Object?>;
   }
 
+  test(
+    'OMP countdown changes from unstarted to running without refilling quota',
+    () {
+      UsageSnapshot snapshot(DateTime? reset) => UsageSnapshot.fromOmpJson({
+        'generatedAt': observed.millisecondsSinceEpoch,
+        'reports': [
+          {
+            'provider': 'anthropic',
+            'fetchedAt': observed.millisecondsSinceEpoch,
+            'metadata': {'email': 'member@example.invalid'},
+            'status': 'ok',
+            'limits': [
+              {
+                'id': 'session',
+                'label': 'Five hour',
+                'status': 'ok',
+                'window': {
+                  'durationMs': const Duration(hours: 5).inMilliseconds,
+                  'resetsAt': ?reset?.millisecondsSinceEpoch,
+                },
+                'amount': {'unit': 'percent', 'remaining': 75},
+              },
+            ],
+          },
+        ],
+      });
+      controller.snapshot = snapshot(null);
+      final pin = PinPreference(
+        id: 'session-pin',
+        accountKey: controller.snapshot!.accounts.single.key,
+        top: const PinLayer(
+          text: PinMetric(limitId: 'session', mode: LayerMode.reset),
+          bar: PinMetric(limitId: 'session', mode: LayerMode.reset),
+        ),
+      );
+      Map<String, Object?> row() =>
+          (controller.pinView(pin)['layers'] as List).single
+              as Map<String, Object?>;
+      expect(row()['text'], '5時0分');
+      expect(row()['fraction'], 1);
+      expect(row()['status'], 'ok');
+      final account =
+          (controller.panelView()['accounts'] as List).single as Map;
+      expect((account['limits'] as List).single['reset'], '尚未開始計時 · 5時0分');
+
+      controller.now = observed.add(const Duration(seconds: 30));
+      expect(row()['text'], '5時0分');
+      expect(row()['fraction'], 1);
+      expect(row()['status'], 'ok');
+
+      controller.now = observed;
+      controller.snapshot = snapshot(observed.add(const Duration(hours: 2)));
+      expect(row()['text'], '2時0分');
+      expect(row()['fraction'], .4);
+      expect(row()['status'], 'ok');
+
+      controller.now = observed.add(const Duration(hours: 2));
+      expect(row()['text'], '待更新');
+      expect(row()['fraction'], 0);
+      expect(row()['status'], 'stale');
+      expect(
+        controller.snapshot!.accounts.single.limits.single.fraction(
+          LayerMode.remaining,
+        ),
+        .75,
+      );
+    },
+  );
+
   test('hidden meters reappear at reset deadline without refilling quota', () {
     final account = project([
       UsageLimit(

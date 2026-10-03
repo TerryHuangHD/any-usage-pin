@@ -129,7 +129,7 @@ A countdown bar means:
 remaining-time ratio = time until reset / source-reported window duration
 ```
 
-It updates on the existing 30-second clock. Missing reset times or window durations produce an outlined `?` bar, not a fabricated 0%. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
+It updates on the existing 30-second clock. When OMP omits the reset time (or returns `null`) and supplies a positive window duration, the window has not started: the countdown shows the full duration (for example, **5時0分** for a five-hour window) and a full bar, without ticking down until OMP reports an actual reset time. The panel and pin tooltips identify this as **尚未開始計時**. This does not refill the remaining quota. Missing/nonpositive window durations or malformed reset times still produce an outlined `?` bar, not a fabricated countdown. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
 
 There is no fixed product-level pin limit. macOS decides whether the combined menu bar item fits; a wide group may be hidden when menu bar space is insufficient. The app does not drop, collapse, replace, or reorder pins automatically. All configured pins remain manageable in Customize.
 
@@ -224,6 +224,8 @@ The storage directory uses permissions `0700`, files use `0600`, and writes are 
 **Upgrading from Cross Agent Usage:** quit the old app before launching AnyUsagePin. If `Application Support/AnyUsagePin` does not exist, the first storage operation moves the previous `Application Support/Cross Agent Usage` directory to the new name, preserving pins, aliases, preferences, snapshots, and recovery backups. A pre-existing AnyUsagePin directory takes precedence; the app does not merge or overwrite either directory. A legacy path that is not a real directory is rejected rather than followed or replaced.
 
 App preferences use schema v2; normalized usage snapshots retain schema v1. Preferences without a refresh interval retain the five-minute default; those without a pin bar length retain Level 3 (32 pt). Legacy v1 preferences migrate in memory, preserving the visible text/quota-bar configuration. Old icon-only pins do not enable their previously hidden channels or labels, and old reset text does not automatically gain a countdown bar. Loading does not rewrite the original file; the next preference change saves the new preference format.
+
+Normalized snapshots preserve OMP's not-started reset marker without inventing a reset timestamp. Older cache files without that marker keep an unknown reset state until a successful OMP refresh supplies the source semantics.
 
 </details>
 
