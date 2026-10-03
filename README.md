@@ -76,7 +76,7 @@ The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppIn
 
 The app has no Dock icon. All configured pins share one menu bar item, displayed side by side in their configured order. Clicking anywhere in the group opens the usage panel; with no pins, the same item shows the app launcher. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its fixed footer provides manual refresh, snapshot/query status, and a settings button. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
 
-Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…**.
+Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…** and, in Sparkle-enabled builds, **Check for Updates…**.
 
 Under **App behavior / App 行為**, two settings save immediately without applying or discarding source-form edits:
 
@@ -88,6 +88,16 @@ The panel, settings, customization, and editors share a neutral palette with sys
 **OMP not found when launched from Finder?** Open the footer settings button and set the full executable path under source settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
 
 Avoid running Debug and Release together: they use the same local settings.
+
+### In-app updates
+
+Source version **1.0.2 (build 3)** adds [Sparkle 2](https://sparkle-project.org/) updates. Published 1.0.0 / 1.0.1 apps do not contain an updater; install a Sparkle-enabled release manually once before using in-app updates.
+
+The app queries update information on launch and whenever the usage panel opens, merging overlapping checks. Background checks do not interrupt startup or open an update dialog. The panel shows **新版 … 可用 / 下載更新** when a compatible, non-skipped update is available. Clicking the button opens Sparkle's standard download, verification, installation, and relaunch flow. No automatic installation is enabled.
+
+The panel distinguishes a failed query (**無法確認最新版本**) from no installable update (**沒有可安裝的更新**); the latter also covers skipped or system-incompatible versions, not just being on the latest version. The right-click **Check for Updates…** action is user-initiated and can rediscover a skipped version. Sparkle's automatic-check preference is respected.
+
+The fixed feed is [`appcast.xml` on GitHub Pages](https://terryhuanghd.github.io/any-usage-pin/appcast.xml); update archives come from GitHub Releases. The endpoint becomes available after the first Sparkle-enabled release and publishing workflow are deployed. Until then, update queries report failure without affecting quota display.
 
 ## Make the menu bar yours
 
@@ -192,6 +202,8 @@ AnyUsagePin does not provide provider login/logout, maintain provider tokens, di
 
 **The agent CLI still owns its authentication behavior.** Running it may refresh OAuth or update its own cache/history/credential state. The entire query cannot be described as side-effect-free. The macOS app is not sandboxed so it can execute your installed CLI.
 
+Update requests go to GitHub Pages and GitHub Releases over HTTPS. They do not include provider credentials, account identifiers, or quota snapshots. Sparkle system profiling is disabled; hosting services still receive normal download/request metadata.
+
 Settings and normalized snapshots stay on your Mac:
 
 ```text
@@ -229,7 +241,7 @@ Issues and pull requests are welcome for reproducible bugs, display improvements
 
 ### Signed DMG releases
 
-Release signing requires the company's Developer ID Application certificate **and private key** in an unlocked Keychain. Debug builds remain ad-hoc signed. The [release script](scripts/release_macos.py) follows the AppToGo-Launcher `release-macos` signing order: inner Flutter frameworks first, app last, with Hardened Runtime and secure timestamps. It checks the requested identity and `arm64` / `x86_64` binaries and rejects a final app signature with `com.apple.security.get-task-allow` enabled.
+Release signing requires the company's Developer ID Application certificate **and private key** in an unlocked Keychain, plus **Python 3.12+** for the publishing tools. Debug builds remain ad-hoc signed, with library validation disabled only in Debug/Profile so Sparkle's bundled binaries can load. The [release script](scripts/release_macos.py) signs Sparkle's Autoupdate, Updater app, optional XPC services, and framework inside-out while preserving their entitlements, then the Flutter frameworks and containing app. It verifies Developer ID identity, secure timestamps, Hardened Runtime, universal `arm64` / `x86_64` binaries, and rejects debugging entitlements.
 
 To verify signing and packaging locally without notarization:
 
@@ -251,7 +263,29 @@ An existing App Store Connect API key can also be stored using `notarytool store
 
 The formal path submits the signed app ZIP, requires Apple's `Accepted` status, and staples the app before building a drag-to-Applications DMG. It then signs, notarizes, and staples the DMG, validates both tickets, and assesses Gatekeeper policy. Failed submissions preserve Apple's response and diagnostic log rather than producing a release-ready result.
 
-Outputs are placed in a unique directory under `build/releases/`: the app, DMG, notarization responses, and `SHA256SUMS`. Publish only the notarized DMG and its checksum; keep Keychain credentials and local diagnostic files private. Intel binaries are included, but runtime smoke verification to date has been on Apple Silicon.
+Outputs are placed in a unique directory under `build/releases/`: the app, DMG, notarization responses, `appcast.xml`, and `SHA256SUMS`. Formal releases generate an Ed25519-signed Sparkle enclosure only after the final DMG is notarized and stapled; checksums cover both DMG and XML. `--prepare-only` never produces a public appcast. Keep Keychain credentials and local diagnostic files private. Intel binaries are included, but runtime smoke verification to date has been on Apple Silicon.
+
+### Publishing the update feed
+
+Apple Developer ID signing and Sparkle Ed25519 signing are separate. The dedicated Sparkle private key lives in the local Keychain under account **`any-usage-pin`**; only its public key is committed as `SUPublicEDKey`. Back up/transfer this key securely outside the repository using Sparkle's `generate_keys --account any-usage-pin -x /private/path/key` and `-f /private/path/key` commands. On another release machine, import the same key rather than generating a replacement; a different key will not match installed apps. The [pinned tools helper](scripts/sparkle_tools.py) verifies the Sparkle 2.10.0 distribution checksum before installation into `build/sparkle/2.10.0`.
+
+For each stable release:
+
+1. Increase both the displayed version and build number in `pubspec.yaml`. Sparkle compares `CFBundleVersion` (the number after `+`); it must increase for every update.
+2. Run the formal notarized release command above.
+3. Create a **draft** GitHub Release with tag `v` followed by the displayed version, and upload the final `AnyUsagePin-VERSION-macos-universal.dmg`, `appcast.xml`, and `SHA256SUMS` from the same output directory. Do not modify or repackage the DMG afterward.
+4. Publish only after all three assets have uploaded.
+
+The [publishing workflow](.github/workflows/publish-appcast.yml) runs on stable Release publication or manual dispatch. It selects the current latest stable release, validates metadata, artifact sizes, SHA256 checksums, and the DMG's Ed25519 signature against the app's public key, then deploys the exact XML to GitHub Pages. Missing assets, prereleases, or invalid signatures fail publication instead of exposing a dangling feed. Deployments are serialized; the workflow uses only `GITHUB_TOKEN`, never the update private key.
+
+GitHub Pages must use **GitHub Actions** as its build source. The workflow must be present on `main` before publishing the first Sparkle-enabled release. There is no XML commit or private-key CI secret to maintain. To verify a published release locally with OpenSSL 3:
+
+```sh
+GH_TOKEN="$(gh auth token)" python3 scripts/publish_appcast.py \
+  --repository TerryHuangHD/any-usage-pin --output build/pages
+```
+
+The full app/DMG notarization and update flow have been exercised locally: an isolated build-2 app discovered, downloaded, installed, and relaunched as the genuine signed build 3. Publication validation was exercised against those real artifacts with a local Release-asset transport fixture, plus live GitHub asset downloads and rejection of old releases missing XML. GitHub Actions deployment itself requires the workflow and new Release to be published.
 
 
 ### Brand assets and attribution

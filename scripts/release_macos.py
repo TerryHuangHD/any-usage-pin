@@ -10,6 +10,8 @@ import shlex
 import subprocess
 import tempfile
 
+from sparkle_tools import create_appcast
+
 
 ROOT = Path(__file__).resolve().parent.parent
 TEAM_ID = "V6C4PTHC4J"
@@ -28,14 +30,54 @@ def run(arguments, *, capture=False, check=True):
     )
 
 
-def verify_app(app):
-    run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", app])
-    entitlement_result = run(
-        ["codesign", "--display", "--entitlements", "-", "--xml", app], capture=True,
+def read_entitlements(component):
+    result = run(
+        ["codesign", "--display", "--entitlements", "-", "--xml", component],
+        capture=True,
     )
-    entitlements = plistlib.loads(entitlement_result.stdout.encode("utf-8")) if entitlement_result.stdout.strip() else {}
-    if entitlements.get("com.apple.security.get-task-allow"):
-        raise RuntimeError("Release signature permits debugging and cannot be notarized")
+    return plistlib.loads(result.stdout.encode("utf-8")) if result.stdout.strip() else {}
+
+
+def sparkle_components(app):
+    framework = app / "Contents/Frameworks/Sparkle.framework"
+    version = framework / "Versions/B"
+    components = [
+        (version / "Autoupdate", version / "Autoupdate"),
+        (version / "Updater.app", version / "Updater.app/Contents/MacOS/Updater"),
+    ]
+    for name in ("Installer", "Downloader"):
+        bundle = version / f"XPCServices/{name}.xpc"
+        if bundle.exists():
+            components.append((bundle, bundle / f"Contents/MacOS/{name}"))
+    components.append((framework, version / "Sparkle"))
+    for component, executable in components:
+        if not component.exists() or not executable.is_file():
+            raise RuntimeError(f"Missing Sparkle distribution component: {component}")
+    return components
+
+
+def sign_sparkle(app):
+    # Explicit inside-out order; retain the shipped helper entitlements, notably
+    # Autoupdate's application identifier, rather than applying app entitlements.
+    entitlements = {}
+    with tempfile.TemporaryDirectory(prefix="sparkle-entitlements-") as directory:
+        for index, (component, _) in enumerate(sparkle_components(app)):
+            original = read_entitlements(component)
+            entitlements[component] = original
+            arguments = [
+                "codesign", "--force", "--options", "runtime", "--timestamp",
+                "--sign", IDENTITY,
+            ]
+            if original:
+                entitlement_file = Path(directory) / f"{index}.plist"
+                entitlement_file.write_bytes(plistlib.dumps(original))
+                arguments.extend(["--entitlements", entitlement_file])
+            run([*arguments, component])
+    return entitlements
+
+
+def verify_app(app, sparkle_entitlements):
+    run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", app])
     binaries = [
         app,
         app / "Contents/Frameworks/App.framework",
@@ -46,7 +88,16 @@ def verify_app(app):
         binaries[1] / "Versions/A/App",
         binaries[2] / "Versions/A/FlutterMacOS",
     ]
+    for component, executable in sparkle_components(app):
+        binaries.append(component)
+        executables.append(executable)
     for bundle, executable in zip(binaries, executables):
+        run(["codesign", "--verify", "--strict", "--verbose=2", bundle])
+        entitlements = read_entitlements(bundle)
+        if entitlements.get("com.apple.security.get-task-allow"):
+            raise RuntimeError(f"Release signature permits debugging: {bundle}")
+        if bundle in sparkle_entitlements and entitlements != sparkle_entitlements[bundle]:
+            raise RuntimeError(f"Sparkle entitlements changed during signing: {bundle}")
         signature = run(["codesign", "--display", "--verbose=4", bundle], capture=True)
         details = signature.stdout + signature.stderr
         if f"TeamIdentifier={TEAM_ID}" not in details or f"Authority={IDENTITY}" not in details:
@@ -127,7 +178,8 @@ def main():
     output = Path(tempfile.mkdtemp(prefix=f"{version}-{build}-", dir=releases))
     app = output / "AnyUsagePin.app"
     run(["ditto", built_app, app])
-    # Match the AppToGo release workflow: inner frameworks first, app last.
+    sparkle_entitlements = sign_sparkle(app)
+    # Sign remaining inner frameworks before the containing app.
     for framework in ("App.framework", "FlutterMacOS.framework"):
         run([
             "codesign", "--force", "--options", "runtime", "--timestamp",
@@ -138,14 +190,14 @@ def main():
         "--sign", IDENTITY, "--entitlements",
         ROOT / "macos/Runner/Release.entitlements", app,
     ])
-    verify_app(app)
+    verify_app(app, sparkle_entitlements)
 
     if not options.prepare_only:
         archive = output / "AnyUsagePin.zip"
         run(["ditto", "-c", "-k", "--keepParent", app, archive])
         # The ZIP receives approval; the ticket is stapled to its contained app.
         notarize(archive, profile_arguments, output, staple_target=app)
-        verify_app(app)
+        verify_app(app, sparkle_entitlements)
         run(["spctl", "--assess", "--type", "execute", "--verbose=2", app])
         archive.unlink()
 
@@ -162,14 +214,25 @@ def main():
         notarize(dmg, profile_arguments, output)
         run(["spctl", "--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", dmg])
 
-    digest = hashlib.sha256()
-    with dmg.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    (output / "SHA256SUMS").write_text(f"{digest.hexdigest()}  {dmg.name}\n", encoding="utf-8")
+    # Never sign an update enclosure until Apple's ticket is stapled to the
+    # final DMG. Neither appcast generation nor checksumming mutates that DMG.
+    appcast = create_appcast(dmg, version, build) if not options.prepare_only else None
+    checksums = []
+    for artifact in (dmg, appcast):
+        if artifact is None:
+            continue
+        digest = hashlib.sha256()
+        with artifact.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        checksums.append(f"{digest.hexdigest()}  {artifact.name}\n")
+    checksum_file = output / "SHA256SUMS"
+    checksum_file.write_text("".join(checksums), encoding="utf-8")
     print(json.dumps({
         "dmg": str(dmg), "version": version, "build": build,
         "team_id": TEAM_ID, "notarized": not options.prepare_only,
+        "appcast": str(appcast) if appcast is not None else None,
+        "checksums": str(checksum_file),
     }, indent=2), flush=True)
     if options.prepare_only:
         print("Signed-only artifact: NOT notarized and NOT ready for a formal public release.", flush=True)

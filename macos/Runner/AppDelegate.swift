@@ -435,6 +435,7 @@ private final class UsageAccountView: NSView {
 private final class UsagePanelController: NSViewController {
   var onRefresh: (() -> Void)?
   var onSettings: (() -> Void)?
+  var onUpdate: (() -> Void)?
   private let scroll = NSScrollView()
   private let document = UsageDocumentView()
   private let content = UsageStyle.vertical(12)
@@ -446,6 +447,8 @@ private final class UsagePanelController: NSViewController {
   private let refresh = NSButton()
   private let spinner = NSProgressIndicator()
   private let footerStatus = NSTextField(labelWithString: "等待來源資料")
+  private let versionStatus = UsageStyle.text(11)
+  private let updateButton = NSButton(title: "檢查更新", target: nil, action: nil)
   private var accounts: [UsageAccount] = []
   private var accountViews: [String: UsageAccountView] = [:]
   private var visibleIDs: [String] = []
@@ -537,6 +540,23 @@ private final class UsagePanelController: NSViewController {
     settings.toolTip = "設定"
     settings.setAccessibilityLabel("開啟設定")
     footer.addArrangedSubview(settings)
+    let versionRow = NSStackView()
+    versionRow.orientation = .horizontal
+    versionRow.alignment = .centerY
+    versionRow.spacing = 8
+    versionRow.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(versionRow)
+    versionStatus.textColor = .secondaryLabelColor
+    versionStatus.stringValue = "等待版本資訊"
+    versionStatus.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    versionRow.addArrangedSubview(versionStatus)
+    updateButton.bezelStyle = .rounded
+    updateButton.target = self
+    updateButton.action = #selector(openUpdate)
+    updateButton.isEnabled = false
+    updateButton.setContentHuggingPriority(.required, for: .horizontal)
+    updateButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+    versionRow.addArrangedSubview(updateButton)
     NSLayoutConstraint.activate([
       title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
       title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
@@ -546,7 +566,11 @@ private final class UsagePanelController: NSViewController {
       scroll.bottomAnchor.constraint(equalTo: separator.topAnchor, constant: -4),
       separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      separator.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -9),
+      separator.bottomAnchor.constraint(equalTo: versionRow.topAnchor, constant: -8),
+      versionRow.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+      versionRow.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+      versionRow.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
+      versionRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 24),
       footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
       footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
       footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10),
@@ -556,6 +580,25 @@ private final class UsagePanelController: NSViewController {
       spinner.widthAnchor.constraint(equalToConstant: 16),
       spinner.heightAnchor.constraint(equalToConstant: 16),
     ])
+  }
+
+  func updateVersion(_ status: AppUpdateStatus, canCheck: Bool) {
+    _ = view
+    updateButton.title = "檢查更新"
+    versionStatus.textColor = .secondaryLabelColor
+    switch status {
+    case .idle: versionStatus.stringValue = "等待版本資訊"
+    case .checking: versionStatus.stringValue = "檢查版本中…"
+    case .available(let version):
+      versionStatus.stringValue = "新版 \(version) 可用"
+      versionStatus.textColor = .systemBlue
+      updateButton.title = "下載更新"
+    case .noUpdate: versionStatus.stringValue = "沒有可安裝的更新"
+    case .failed: versionStatus.stringValue = "無法確認最新版本"
+    case .disabled: versionStatus.stringValue = "自動檢查已停用"
+    }
+    updateButton.isEnabled = canCheck
+    updateButton.setAccessibilityLabel(updateButton.title)
   }
 
   func update(_ data: [String: Any]) {
@@ -645,6 +688,7 @@ private final class UsagePanelController: NSViewController {
 
   @objc private func refreshUsage() { onRefresh?() }
   @objc private func openSettings() { onSettings?() }
+  @objc private func openUpdate() { onUpdate?() }
 }
 
 private struct StatusLayer: Equatable {
@@ -724,11 +768,13 @@ private struct StatusPin: Equatable {
 }
 
 @main
+@MainActor
 class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
   private var engine: FlutterEngine?
   private var desktopChannel: FlutterMethodChannel?
   private var panel: UsagePanel?
   private var usageController: UsagePanelController?
+  private let appUpdater = AppUpdater()
   private var settingsWindow: NSWindow?
   private var statusItem: NSStatusItem?
   private var pinArtwork: [String: (pin: StatusPin, image: NSImage)] = [:]
@@ -801,6 +847,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
       self?.desktopChannel?.invokeMethod("desktop.refresh", arguments: nil)
     }
     usageController.onSettings = { [weak self] in self?.showSettings() }
+    usageController.onUpdate = { [weak self] in self?.showUpdate() }
     self.usageController = usageController
     let panel = UsagePanel(
       contentRect: NSRect(x: 0, y: 0, width: 380, height: 620),
@@ -821,6 +868,12 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     panel.setContentSize(NSSize(width: 380, height: 620))
     self.panel = panel
     installObservers()
+    appUpdater.onChange = { [weak self] in
+      guard let self = self else { return }
+      self.usageController?.updateVersion(
+        self.appUpdater.status, canCheck: self.appUpdater.canCheckForUpdates)
+    }
+    appUpdater.start()
     if !engine.run(withEntrypoint: nil) {
       let alert = NSAlert()
       alert.messageText = "AnyUsagePin could not start"
@@ -1044,6 +1097,12 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
         title: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ",")
       settings.target = self
       menu.addItem(settings)
+      let update = NSMenuItem(
+        title: "Check for Updates…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
+      update.target = self
+      update.isEnabled = appUpdater.canCheckForUpdates
+      menu.autoenablesItems = false
+      menu.addItem(update)
       menu.addItem(.separator())
       let quit = NSMenuItem(title: "Quit", action: #selector(quitFromMenu), keyEquivalent: "q")
       quit.target = self
@@ -1056,6 +1115,14 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
 
   @objc private func openFromMenu() { showPanel() }
   @objc private func openSettingsFromMenu() { showSettings() }
+  @objc private func checkForUpdatesFromMenu() { showUpdate() }
+
+  private func showUpdate() {
+    guard appUpdater.canCheckForUpdates else { return }
+    hidePanel()
+    NSApp.activate(ignoringOtherApps: true)
+    appUpdater.showUpdate()
+  }
 
   private func showSettings() {
     hidePanel()
@@ -1076,7 +1143,10 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     if !wasVisible { positionPanel(panel) }
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
-    if !wasVisible { desktopChannel?.invokeMethod("desktop.opened", arguments: nil) }
+    if !wasVisible {
+      desktopChannel?.invokeMethod("desktop.opened", arguments: nil)
+      appUpdater.checkWhenOpened()
+    }
   }
 
   private func positionPanel(_ panel: NSPanel) {
@@ -1183,7 +1253,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     guard ready, let channel = desktopChannel else { return .terminateNow }
     if terminationRequested { return .terminateLater }
     terminationRequested = true
-    let reply = { [weak self] in
+    let reply: @MainActor @Sendable () -> Void = { [weak self] in
       guard let self = self, !self.terminationReplySent else { return }
       self.terminationReplySent = true
       NSApp.reply(toApplicationShouldTerminate: true)
