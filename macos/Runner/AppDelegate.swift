@@ -706,6 +706,7 @@ private struct StatusPin: Equatable {
   let showIcon: Bool
   let label: String
   let labelWidth: Int
+  let barWidth: Double
   let color: String
   let status: String
   let layers: [StatusLayer]
@@ -718,6 +719,10 @@ private struct StatusPin: Equatable {
           let showIcon = value["showIcon"] as? Bool,
           let label = value["label"] as? String,
           let labelWidth = value["labelWidth"] as? Int, labelWidth >= 0,
+          let barWidth = value["barWidth"] as? NSNumber,
+          CFGetTypeID(barWidth) != CFBooleanGetTypeID(),
+          barWidth.doubleValue >= 16, barWidth.doubleValue <= 40,
+          barWidth.doubleValue.truncatingRemainder(dividingBy: 8) == 0,
           let color = value["color"] as? String,
           let pinStatus = value["status"] as? String,
           let rawLayers = value["layers"] as? [[String: Any]],
@@ -755,6 +760,7 @@ private struct StatusPin: Equatable {
     self.showIcon = showIcon
     self.label = label
     self.labelWidth = labelWidth
+    self.barWidth = barWidth.doubleValue
     self.color = color
     self.status = pinStatus
     self.layers = layers
@@ -763,6 +769,7 @@ private struct StatusPin: Equatable {
   func hasSameArtwork(as other: StatusPin) -> Bool {
     provider == other.provider && showIcon == other.showIcon &&
       label == other.label && labelWidth == other.labelWidth &&
+      barWidth == other.barWidth &&
       color == other.color && status == other.status && layers == other.layers
   }
 }
@@ -1289,7 +1296,6 @@ private enum StatusArtwork {
   }()
   private static let warningText: NSString = "!"
   private static let unknownText: NSString = "?"
-  private static let barWidth: CGFloat = 32
   private static let barGap: CGFloat = 6
   private static let warningGap: CGFloat = 3
   private static var logos: [String: NSImage] = [:]
@@ -1355,6 +1361,7 @@ private enum StatusArtwork {
     let selectedColor = customColor(pin.color)
     let color = selectedColor ?? .black
     let layers = pin.layers
+    let barWidth = CGFloat(pin.barWidth)
     let font = layers.count == 2 ? doubleFont : singleFont
     let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
     let labelAttributes: [NSAttributedString.Key: Any] = [

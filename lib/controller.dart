@@ -466,6 +466,7 @@ class UsageController extends ChangeNotifier {
       'showIcon': pin.showIcon,
       'label': pin.label,
       'labelWidth': pin.labelWidth,
+      'barWidth': prefs.pinBarWidth,
       'color': pin.color,
       'layers': layers,
     };

@@ -499,6 +499,7 @@ class Preferences {
     this.rawValues = false,
     this.layout = PanelLayout.cards,
     this.theme = ThemeChoice.system,
+    this.pinBarLengthLevel = 3,
     List<PinPreference> pins = const [],
     Map<String, AccountPreference> accountPreferences = const {},
     List<String> accountOrder = const [],
@@ -513,10 +514,15 @@ class Preferences {
         'refreshIntervalMinutes',
       );
     }
+    if (pinBarLengthLevel < 1 || pinBarLengthLevel > 4) {
+      throw RangeError.range(pinBarLengthLevel, 1, 4, 'pinBarLengthLevel');
+    }
   }
 
   final String selectedAgent, ompPath;
   final int refreshIntervalMinutes;
+  final int pinBarLengthLevel;
+  double get pinBarWidth => (pinBarLengthLevel + 1) * 8.0;
   final bool dense, rawValues;
   final PanelLayout layout;
   final ThemeChoice theme;
@@ -532,6 +538,7 @@ class Preferences {
     bool? rawValues,
     PanelLayout? layout,
     ThemeChoice? theme,
+    int? pinBarLengthLevel,
     List<PinPreference>? pins,
     Map<String, AccountPreference>? accountPreferences,
     List<String>? accountOrder,
@@ -544,6 +551,7 @@ class Preferences {
     rawValues: rawValues ?? this.rawValues,
     layout: layout ?? this.layout,
     theme: theme ?? this.theme,
+    pinBarLengthLevel: pinBarLengthLevel ?? this.pinBarLengthLevel,
     pins: pins ?? this.pins,
     accountPreferences: accountPreferences ?? this.accountPreferences,
     accountOrder: accountOrder ?? this.accountOrder,
@@ -562,6 +570,7 @@ class Preferences {
       rawValues: _bool(json, 'rawValues', false),
       layout: _enumValue(PanelLayout.values, json['layout'], PanelLayout.cards),
       theme: _enumValue(ThemeChoice.values, json['theme'], ThemeChoice.system),
+      pinBarLengthLevel: _integer(json, 'pinBarLengthLevel', 3),
       pins: _list(json, 'pins').map((item) {
         final pin = _requiredMap(item);
         return version == 1
@@ -585,6 +594,7 @@ class Preferences {
     'rawValues': rawValues,
     'layout': layout.name,
     'theme': theme.name,
+    'pinBarLengthLevel': pinBarLengthLevel,
     'pins': pins.map((item) => item.toJson()).toList(),
     'accountPreferences': accountPreferences.map(
       (key, value) => MapEntry(key, value.toJson()),

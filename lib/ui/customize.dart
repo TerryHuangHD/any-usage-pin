@@ -525,20 +525,20 @@ class _CustomizePageState extends State<CustomizePage> {
 
   Future<void> _apply() async {
     setState(() => _saving = true);
-    final success = await widget.controller.applyPreferences(
+    await widget.controller.applyPreferences(
       widget.controller.preferences.copyWith(
         pins: _draft.pins,
         accountOrder: _draft.accountOrder,
         accountPreferences: _draft.accountPreferences,
         layout: _draft.layout,
         theme: _draft.theme,
+        pinBarLengthLevel: _draft.pinBarLengthLevel,
         dense: _draft.dense,
         rawValues: _draft.rawValues,
       ),
     );
     if (!mounted) return;
     setState(() => _saving = false);
-    if (success) widget.onClose();
   }
 
   @override
@@ -741,6 +741,38 @@ class _CustomizePageState extends State<CustomizePage> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<int>(
+                      key: ValueKey(_draft.pinBarLengthLevel),
+                      dropdownColor: Theme.of(context).colorScheme.surface,
+                      initialValue: _draft.pinBarLengthLevel,
+                      decoration: const InputDecoration(
+                        labelText: '選單列 pin 條狀長度',
+                        helperText: '套用至所有 pin 的配額與倒數條；Level 3 為原本長度。',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 1,
+                          child: Text('Level 1 · 16 pt'),
+                        ),
+                        DropdownMenuItem(
+                          value: 2,
+                          child: Text('Level 2 · 24 pt'),
+                        ),
+                        DropdownMenuItem(
+                          value: 3,
+                          child: Text('Level 3 · 32 pt'),
+                        ),
+                        DropdownMenuItem(
+                          value: 4,
+                          child: Text('Level 4 · 40 pt'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(
+                        () =>
+                            _draft = _draft.copyWith(pinBarLengthLevel: value),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     SwitchListTile.adaptive(

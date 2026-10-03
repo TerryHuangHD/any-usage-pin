@@ -929,6 +929,7 @@ void main() {
         ]).accounts;
         final first = Preferences(
           refreshIntervalMinutes: 1,
+          pinBarLengthLevel: 1,
           pins: [
             PinPreference(
               id: 'pin-one',
@@ -983,13 +984,15 @@ void main() {
           layout: PanelLayout.table,
         );
         await AppStorage(directory: directory).savePreferences(first);
-        expect(
-          (await AppStorage(
-            directory: directory,
-          ).loadPreferences()).refreshIntervalMinutes,
-          1,
+        final firstReload = await AppStorage(
+          directory: directory,
+        ).loadPreferences();
+        expect(firstReload.refreshIntervalMinutes, 1);
+        expect(firstReload.pinBarLengthLevel, 1);
+        final slowerRefresh = edited.copyWith(
+          refreshIntervalMinutes: 10,
+          pinBarLengthLevel: 4,
         );
-        final slowerRefresh = edited.copyWith(refreshIntervalMinutes: 10);
         final storage = AppStorage(directory: directory);
         final firstSave = storage.savePreferences(first);
         final laterSave = storage.savePreferences(slowerRefresh);
@@ -1025,6 +1028,7 @@ void main() {
         expect(restored.theme, ThemeChoice.dark);
         expect(restored.layout, PanelLayout.table);
         expect(restored.refreshIntervalMinutes, 10);
+        expect(restored.pinBarLengthLevel, 4);
         final temporaryFiles = await directory
             .list()
             .where((entry) => entry.path.endsWith('.tmp'))
@@ -1107,6 +1111,22 @@ void main() {
         await expectLater(storage.loadPreferences(), throwsA(isA<Exception>()));
         await expectLater(
           storage.savePreferences(Preferences(refreshIntervalMinutes: 1)),
+          throwsA(isA<Exception>()),
+        );
+        expect(await file.readAsString(), original);
+      }
+    });
+
+    test('invalid pin bar lengths preserve the original settings', () async {
+      final file = File('${directory.path}/preferences.json');
+      for (final level in [0, 5, 2.5, '3']) {
+        final json = Preferences().toJson()..['pinBarLengthLevel'] = level;
+        final original = jsonEncode(json);
+        await file.writeAsString(original);
+        final storage = AppStorage(directory: directory);
+        await expectLater(storage.loadPreferences(), throwsA(isA<Exception>()));
+        await expectLater(
+          storage.savePreferences(Preferences(pinBarLengthLevel: 3)),
           throwsA(isA<Exception>()),
         );
         expect(await file.readAsString(), original);

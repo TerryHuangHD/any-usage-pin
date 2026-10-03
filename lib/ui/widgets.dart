@@ -198,6 +198,7 @@ class PinPreview extends StatelessWidget {
         : Theme.of(context).colorScheme.onSurface;
     final showLabel =
         (view['labelWidth'] as int) > 0 && (view['label'] as String).isNotEmpty;
+    final barWidth = (view['barWidth'] as num).toDouble();
     final fontSize = layers.length == 2 ? 9.0 : 11.0;
     return Tooltip(
       message: view['tooltip'] as String,
@@ -242,7 +243,7 @@ class PinPreview extends StatelessWidget {
                         if (layer['showBar'] == true) ...[
                           if (layer['fraction'] != null)
                             SizedBox(
-                              width: 32,
+                              width: barWidth,
                               child: LinearProgressIndicator(
                                 value: (layer['fraction'] as double).clamp(
                                   0,
@@ -256,7 +257,7 @@ class PinPreview extends StatelessWidget {
                             )
                           else
                             Container(
-                              width: 32,
+                              width: barWidth,
                               height: 8,
                               decoration: BoxDecoration(
                                 border: Border.all(color: color),

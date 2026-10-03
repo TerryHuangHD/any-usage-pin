@@ -119,7 +119,9 @@ Examples of configurations—not live usage values:
 
 Use text only, bars only, or both. Turn both rows off for an icon-only pin. Set the provider icon, shared color, optional label, and label width separately, then drag pins into the order you want.
 
-The editor's preview stays below the scrollable settings. Changes remain a draft until **Apply**; **Cancel** does not partially save. Resetting display defaults does not reset the CLI path or log out accounts.
+Under **Customize / 客製化顯示 → Panel appearance / 面板外觀**, set **Menu bar pin bar length / 選單列 pin 條狀長度** to Level 1–4: **16, 24, 32, or 40 pt**. Level 3 preserves the original 32 pt length. This shared setting updates all quota/countdown bars, including unknown outlined bars. Previews reflect the draft immediately; the menu bar updates after **Apply**.
+
+The editor's preview stays below the scrollable settings. Changes remain a draft until **Apply**, which saves and updates the display without leaving customization; you can continue editing or apply again. **Cancel** and the back button discard only changes made since the last successful apply. Resetting display defaults does not reset the CLI path or log out accounts.
 
 A countdown bar means:
 
@@ -221,7 +223,7 @@ The storage directory uses permissions `0700`, files use `0600`, and writes are 
 
 **Upgrading from Cross Agent Usage:** quit the old app before launching AnyUsagePin. If `Application Support/AnyUsagePin` does not exist, the first storage operation moves the previous `Application Support/Cross Agent Usage` directory to the new name, preserving pins, aliases, preferences, snapshots, and recovery backups. A pre-existing AnyUsagePin directory takes precedence; the app does not merge or overwrite either directory. A legacy path that is not a real directory is rejected rather than followed or replaced.
 
-App preferences use schema v2; normalized usage snapshots retain schema v1. Preferences without a refresh interval retain the five-minute default. Legacy v1 preferences migrate in memory, preserving the visible text/quota-bar configuration. Old icon-only pins do not enable their previously hidden channels or labels, and old reset text does not automatically gain a countdown bar. Loading does not rewrite the original file; the next preference change saves the new preference format.
+App preferences use schema v2; normalized usage snapshots retain schema v1. Preferences without a refresh interval retain the five-minute default; those without a pin bar length retain Level 3 (32 pt). Legacy v1 preferences migrate in memory, preserving the visible text/quota-bar configuration. Old icon-only pins do not enable their previously hidden channels or labels, and old reset text does not automatically gain a countdown bar. Loading does not rewrite the original file; the next preference change saves the new preference format.
 
 </details>
 
@@ -235,7 +237,7 @@ flutter test test/core_test.dart test/controller_test.dart
 flutter run -d macos
 ```
 
-The [core regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings (including the 1- and 10-minute refresh boundaries), migrations, and corrupt-file protection, including invalid refresh intervals. [Controller regressions](test/controller_test.dart) ensure hidden expired, missing, errored, and stale meters still appear in the usage panel and flag unpinned accounts in focus mode.
+The [core regression suite](test/core_test.dart) covers account/scope isolation, shared pools, out-of-order observations, units and reset boundaries, countdown ratios, subprocess cancellation/output limits, error privacy, persistent settings (including the 1- and 10-minute refresh boundaries and Level 1/4 pin bar lengths), migrations, and corrupt-file protection, including invalid refresh intervals and pin bar lengths. [Controller regressions](test/controller_test.dart) ensure hidden expired, missing, errored, and stale meters still appear in the usage panel and flag unpinned accounts in focus mode.
 
 Issues and pull requests are welcome for reproducible bugs, display improvements, and real agent integrations. For bug reports, include macOS, Flutter, and agent versions plus reproduction steps—but **not credentials, private emails, or unredacted usage payloads**. For an adapter proposal, include its token-free inventory/quota contract and the limitations listed in the roadmap.
 
