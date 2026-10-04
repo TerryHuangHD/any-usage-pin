@@ -413,6 +413,7 @@ class UsageController extends ChangeNotifier {
       tooltip.add(
         '$row · $channel · ${limit?.label ?? '原窗口不可用'} · $mode：'
         '$value$resetNote${status == 'ok' ? '' : ' · $status'}'
+        '${limit != null && limit.status != 'ok' ? ' · 來源狀態：${limit.status}' : ''}'
         ' · ${ageText(limit?.fetchedAt ?? account?.fetchedAt, now)}',
       );
     }
@@ -424,7 +425,6 @@ class UsageController extends ChangeNotifier {
       final row = index == 0 ? '上層' : '下層';
       String? text;
       double? fraction;
-      var status = 'ok';
       final textMetric = layer.text;
       if (textMetric != null) {
         final limit = findLimit(textMetric);
@@ -436,7 +436,7 @@ class UsageController extends ChangeNotifier {
               compactReset: true,
             ) ??
             '無資料';
-        status = channelStatus(
+        final status = channelStatus(
           limit,
           textMetric.mode == LayerMode.reset
               ? limit != null && limit.resetState(now) != ResetState.unknown
@@ -452,14 +452,6 @@ class UsageController extends ChangeNotifier {
         final limit = findLimit(barMetric);
         fraction = limit?.barFraction(barMetric.mode, now);
         final barStatus = channelStatus(limit, fraction != null);
-        // One healthy channel must not conceal another channel's missing data.
-        if (barStatus != 'ok') {
-          if (barStatus == 'error' ||
-              status == 'ok' ||
-              (barStatus == 'stale' && status == 'missing')) {
-            status = barStatus;
-          }
-        }
         final value = fraction == null
             ? barMetric.mode == LayerMode.reset
                   ? '未知比例（缺少重置時間或窗口長度）'
@@ -472,22 +464,21 @@ class UsageController extends ChangeNotifier {
         'text': text,
         'showBar': barMetric != null,
         'fraction': fraction,
-        'status': status,
       });
     }
     if (account == null) tooltip.add('目前清單找不到這個帳號，pin 未自動改綁。');
-    if (known != null) tooltip.add('來源更新：${ageText(known.fetchedAt, now)}');
+    if (known != null) {
+      tooltip.add('來源更新：${ageText(known.fetchedAt, now)}');
+      if (accountStale(known)) tooltip.add('舊資料 · 待來源更新');
+    }
+    if (known?.issue != null) tooltip.add(known!.issue!);
+    if (known?.disabled == true && known?.issue == null) {
+      tooltip.add('OMP 已停用此憑證；請到 OMP 處理登入。');
+    }
     if (error != null) tooltip.add('查詢失敗，保留上次已知資料。');
     return {
       'id': pin.id,
       'provider': known?.provider ?? 'unknown',
-      'status': account == null
-          ? 'missing'
-          : account.disabled || account.issue != null || error != null
-          ? 'error'
-          : accountStale(account)
-          ? 'stale'
-          : 'ok',
       'title': title,
       'tooltip': tooltip.join('\n'),
       'showIcon': pin.showIcon,

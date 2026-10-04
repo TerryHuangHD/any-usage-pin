@@ -817,7 +817,6 @@ private struct StatusLayer: Equatable {
   let text: String?
   let showBar: Bool
   let fraction: Double?
-  let status: String
 }
 
 private struct StatusPin: Equatable {
@@ -830,7 +829,6 @@ private struct StatusPin: Equatable {
   let labelWidth: Int
   let barWidth: Double
   let color: String
-  let status: String
   let layers: [StatusLayer]
 
   init?(_ value: [String: Any]) {
@@ -846,15 +844,13 @@ private struct StatusPin: Equatable {
           barWidth.doubleValue >= 10, barWidth.doubleValue <= 50,
           barWidth.doubleValue.rounded() == barWidth.doubleValue,
           let color = value["color"] as? String,
-          let pinStatus = value["status"] as? String,
           let rawLayers = value["layers"] as? [[String: Any]],
           rawLayers.count <= 2 else { return nil }
     var layers: [StatusLayer] = []
     layers.reserveCapacity(rawLayers.count)
     for raw in rawLayers {
       guard let showBar = raw["showBar"] as? NSNumber,
-            CFGetTypeID(showBar) == CFBooleanGetTypeID(),
-            let status = raw["status"] as? String else { return nil }
+            CFGetTypeID(showBar) == CFBooleanGetTypeID() else { return nil }
       let text: String?
       if let value = raw["text"], !(value is NSNull) {
         guard let string = value as? String else { return nil }
@@ -872,7 +868,7 @@ private struct StatusPin: Equatable {
       }
       if text != nil || showBar.boolValue {
         layers.append(StatusLayer(
-          text: text, showBar: showBar.boolValue, fraction: fraction, status: status))
+          text: text, showBar: showBar.boolValue, fraction: fraction))
       }
     }
     self.id = id
@@ -884,7 +880,6 @@ private struct StatusPin: Equatable {
     self.labelWidth = labelWidth
     self.barWidth = barWidth.doubleValue
     self.color = color
-    self.status = pinStatus
     self.layers = layers
   }
 
@@ -892,7 +887,7 @@ private struct StatusPin: Equatable {
     provider == other.provider && showIcon == other.showIcon &&
       label == other.label && labelWidth == other.labelWidth &&
       barWidth == other.barWidth &&
-      color == other.color && status == other.status && layers == other.layers
+      color == other.color && layers == other.layers
   }
 }
 
@@ -1417,10 +1412,7 @@ private enum StatusArtwork {
     paragraph.lineBreakMode = .byTruncatingTail
     return paragraph
   }()
-  private static let warningText: NSString = "!"
-  private static let unknownText: NSString = "?"
   private static let barGap: CGFloat = 6
-  private static let warningGap: CGFloat = 3
   private static var logos: [String: NSImage] = [:]
   static let launcherImage = NSImage(systemSymbolName: "chart.bar", accessibilityDescription: nil)
 
@@ -1491,24 +1483,12 @@ private enum StatusArtwork {
       .font: labelFont, .foregroundColor: color, .paragraphStyle: labelParagraph,
     ]
     let labelWidth: CGFloat = pin.label.isEmpty ? 0 : CGFloat(pin.labelWidth)
-    let hasRowWarning = layers.contains { $0.status != "ok" }
-    let hasGlobalWarning = pin.status != "ok" && !hasRowWarning
-    let warningWidth: CGFloat = hasRowWarning || hasGlobalWarning
-      ? ceil(warningText.size(withAttributes: attributes).width) : 0
-    let hasUnknownBar = layers.contains { $0.showBar && $0.fraction == nil }
-    let unknownWidth: CGFloat = hasUnknownBar
-      ? ceil(unknownText.size(withAttributes: attributes).width) : 0
     let trackColor = layers.contains { $0.showBar && $0.fraction != nil }
       ? color.withAlphaComponent(0.25) : nil
     var rowsWidth: CGFloat = 0
     for layer in layers {
-      let warns = layer.status != "ok"
       var width: CGFloat = layer.showBar ? barWidth : 0
-      if layer.showBar && (layer.text != nil || warns) { width += barGap }
-      if warns {
-        width += warningWidth
-        if layer.text != nil { width += warningGap }
-      }
+      if layer.showBar && layer.text != nil { width += barGap }
       if let text = layer.text {
         width += ceil((text as NSString).size(withAttributes: attributes).width)
       }
@@ -1516,11 +1496,8 @@ private enum StatusArtwork {
     }
     let iconWidth: CGFloat = pin.showIcon ? 18 : 0
     let labelGap: CGFloat = labelWidth > 0 && rowsWidth > 0 ? 5 : 0
-    let globalWarningGap: CGFloat = hasGlobalWarning && (rowsWidth > 0 || labelWidth > 0)
-      ? warningGap : 0
-    let globalWarningWidth: CGFloat = hasGlobalWarning ? globalWarningGap + warningWidth : 0
     let size = NSSize(
-      width: max(22, 4 + iconWidth + labelWidth + labelGap + rowsWidth + globalWarningWidth),
+      width: max(22, 4 + iconWidth + labelWidth + labelGap + rowsWidth),
       height: 22)
     let image = NSImage(size: size)
     image.lockFocus()
@@ -1549,7 +1526,6 @@ private enum StatusArtwork {
     for (index, layer) in layers.enumerated() {
       let y: CGFloat = layers.count == 2 ? (index == 0 ? 11 : 1) : 4
       var rowX = x
-      let warns = layer.status != "ok"
       if layer.showBar {
         if let fraction = layer.fraction {
           let track = NSRect(x: rowX, y: y + 3, width: barWidth, height: 4)
@@ -1563,30 +1539,18 @@ private enum StatusArtwork {
             NSBezierPath(roundedRect: filled, xRadius: 2, yRadius: 2).fill()
           }
         } else {
-          // An outlined track with a question mark is unknown, not a valid zero.
+          // Unknown values retain an outline, distinct from a valid zero's filled track.
           let track = NSRect(x: rowX, y: y + 1, width: barWidth, height: 8)
           color.setStroke()
           NSBezierPath(
             roundedRect: track.insetBy(dx: 0.5, dy: 0.5), xRadius: 2, yRadius: 2).stroke()
-          unknownText.draw(
-            at: NSPoint(x: rowX + (barWidth - unknownWidth) / 2, y: y),
-            withAttributes: attributes)
         }
         rowX += barWidth
-        if layer.text != nil || warns { rowX += barGap }
-      }
-      if warns {
-        warningText.draw(at: NSPoint(x: rowX, y: y), withAttributes: attributes)
-        rowX += warningWidth
-        if layer.text != nil { rowX += warningGap }
+        if layer.text != nil { rowX += barGap }
       }
       if let text = layer.text {
         (text as NSString).draw(at: NSPoint(x: rowX, y: y), withAttributes: attributes)
       }
-    }
-    if hasGlobalWarning {
-      warningText.draw(
-        at: NSPoint(x: x + rowsWidth + globalWarningGap, y: 4), withAttributes: attributes)
     }
     image.unlockFocus()
     // NSStatusBarButton applies the menu bar's own tint, independent of app appearance.

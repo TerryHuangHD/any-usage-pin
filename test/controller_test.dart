@@ -105,21 +105,17 @@ void main() {
           (controller.pinView(pin)['layers'] as List).single
               as Map<String, Object?>;
       expect(row()['fraction'], 1);
-      expect(row()['status'], 'ok');
 
       controller.now = observed.add(const Duration(seconds: 30));
       expect(row()['fraction'], 1);
-      expect(row()['status'], 'ok');
 
       controller.now = observed;
       controller.snapshot = snapshot(observed.add(const Duration(hours: 2)));
       expect(row()['fraction'], .4);
-      expect(row()['status'], 'ok');
 
       controller.now = observed.add(const Duration(hours: 2));
       expect(row()['text'], '待更新');
       expect(row()['fraction'], 0);
-      expect(row()['status'], 'stale');
       expect(
         controller.snapshot!.accounts.single.limits.single.fraction(
           LayerMode.remaining,
@@ -175,7 +171,6 @@ void main() {
       );
       final row = (controller.pinView(pin)['layers'] as List).single as Map;
       expect(row['text'], text, reason: '$remaining');
-      expect(row['status'], remaining == Duration.zero ? 'stale' : 'ok');
       if (remaining == const Duration(days: 6, hours: 14)) {
         expect(row['fraction'], closeTo(158 / 168, 1e-12));
       }
@@ -197,7 +192,6 @@ void main() {
     final missing = (controller.pinView(pin)['layers'] as List).single as Map;
     expect(missing['text'], '無重置時間');
     expect(missing['fraction'], isNull);
-    expect(missing['status'], 'missing');
   });
 
   test('hidden meters reappear at reset deadline without refilling quota', () {

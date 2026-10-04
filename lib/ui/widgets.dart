@@ -263,26 +263,9 @@ class PinPreview extends StatelessWidget {
                                 border: Border.all(color: color),
                                 borderRadius: BorderRadius.circular(2),
                               ),
-                              child: Center(
-                                child: Text(
-                                  '?',
-                                  style: TextStyle(
-                                    fontSize: fontSize,
-                                    height: 1,
-                                    color: color,
-                                  ),
-                                ),
-                              ),
                             ),
-                          if (layer['text'] != null || layer['status'] != 'ok')
+                          if (layer['text'] != null)
                             const SizedBox(width: 6),
-                        ],
-                        if (layer['status'] != 'ok') ...[
-                          Text(
-                            '!',
-                            style: TextStyle(fontSize: fontSize, color: color),
-                          ),
-                          if (layer['text'] != null) const SizedBox(width: 3),
                         ],
                         if (layer['text'] != null)
                           Text(
@@ -300,9 +283,6 @@ class PinPreview extends StatelessWidget {
                     ),
                 ],
               ),
-            if (view['status'] != 'ok' &&
-                layers.every((layer) => layer['status'] == 'ok'))
-              Text(' !', style: TextStyle(fontSize: 11, color: color)),
           ],
         ),
       ),

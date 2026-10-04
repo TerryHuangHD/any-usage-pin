@@ -128,6 +128,8 @@ Examples of configurations—not live usage values:
 
 Use text only, bars only, or both. Turn both rows off for an icon-only pin. Set the provider icon, shared color, optional label, and label width separately, then drag pins into the order you want.
 
+Quota and data-quality statuses appear only in pin tooltips and the usage panel, not as extra `!` or `?` glyphs in the menu bar or customization previews. An exhausted window keeps its configured quota bar and reset text. Unknown bar values retain an unmarked outline, distinct from a valid zero's dim track; unavailable metric text retains its existing placeholder. Tooltips include the source status (such as `exhausted`), per-channel freshness, and account/query problems, including for icon-only pins.
+
 Under **Customize / 客製化顯示 → Panel appearance / 面板外觀**, adjust **Menu bar pin bar length / 選單列 pin 條狀長度** with a slider from **10 to 50 pt**, in 1 pt steps, defaulting to **25 pt**. This shared setting updates all quota/countdown bars, including unknown outlined bars. Previews reflect the draft immediately; the menu bar updates after **Apply**.
 
 The editor's preview stays below the scrollable settings. Changes remain a draft until **Apply**, which saves and updates the display without leaving customization; you can continue editing or apply again. **Cancel** and the back button discard only changes made since the last successful apply. Resetting display defaults does not reset the CLI path or log out accounts.
@@ -140,7 +142,7 @@ A countdown bar means:
 remaining-time ratio = time until reset / source-reported window duration
 ```
 
-It updates on the existing 30-second clock. When OMP omits the reset time (or returns `null`) and supplies a positive window duration, the window has not started: the pin countdown shows the full duration (for example, **5:00** for a five-hour window; **5時0分** in the panel/tooltip) and a full bar, without ticking down until OMP reports an actual reset time. The panel and pin tooltips identify this as **尚未開始計時**. This does not refill the remaining quota. Missing/nonpositive window durations or malformed reset times still produce an outlined `?` bar, not a fabricated countdown. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
+It updates on the existing 30-second clock. When OMP omits the reset time (or returns `null`) and supplies a positive window duration, the window has not started: the pin countdown shows the full duration (for example, **5:00** for a five-hour window; **5時0分** in the panel/tooltip) and a full bar, without ticking down until OMP reports an actual reset time. The panel and pin tooltips identify this as **尚未開始計時**. This does not refill the remaining quota. Missing/nonpositive window durations or malformed reset times still produce an unmarked outlined bar, not a fabricated countdown. Tooltips identify each channel's window, missing/stale data, and source age independently.
 
 OpenAI Codex and Claude account panels also show **Reset seats** (OMP's reported available saved-reset count) and **Soonest expires** (the earliest valid expiry among available credits). Expiry times use the Mac's local time. Redeemed credits and credits already expired at the source observation are excluded; optional missing credit statuses are accepted. A reported zero displays **0** with no expiry (`—`), while missing or malformed counts stay **無資料**, not zero. Reset credits remain isolated by account, retain their own observation time through caching/merging, and are read-only here—the app does not redeem them.
 
@@ -168,7 +170,7 @@ OMP provider reports exercised with the app include **Claude (Anthropic), OpenAI
 - Preserves units such as percent, USD, credits, and requests instead of synthesizing a total percentage.
 - Keeps last-known data after a failed query, with its age and warning. Missing/future timestamps, data at least ten minutes old, and passed reset deadlines are flagged.
 - A passed reset deadline means **waiting for an update**, not proof that quota has refilled.
-- Missing accounts keep their existing pin binding and an unavailable marker; pins are never reassigned to another account.
+- Missing accounts keep their existing pin binding and unavailable details in the tooltip/panel; pins are never reassigned to another account.
 
 Full account emails remain visible alongside aliases. Normal quota rows can be hidden, but missing, stale, and error rows remain visible, including problems with unpinned accounts in the focus layout.
 
