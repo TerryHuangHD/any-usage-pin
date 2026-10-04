@@ -532,7 +532,7 @@ class _CustomizePageState extends State<CustomizePage> {
         accountPreferences: _draft.accountPreferences,
         layout: _draft.layout,
         theme: _draft.theme,
-        pinBarLengthLevel: _draft.pinBarLengthLevel,
+        pinBarLength: _draft.pinBarLength,
         dense: _draft.dense,
         rawValues: _draft.rawValues,
       ),
@@ -743,35 +743,30 @@ class _CustomizePageState extends State<CustomizePage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<int>(
-                      key: ValueKey(_draft.pinBarLengthLevel),
-                      dropdownColor: Theme.of(context).colorScheme.surface,
-                      initialValue: _draft.pinBarLengthLevel,
-                      decoration: const InputDecoration(
-                        labelText: '選單列 pin 條狀長度',
-                        helperText: '套用至所有 pin 的配額與倒數條；Level 3 為原本長度。',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 1,
-                          child: Text('Level 1 · 16 pt'),
-                        ),
-                        DropdownMenuItem(
-                          value: 2,
-                          child: Text('Level 2 · 24 pt'),
-                        ),
-                        DropdownMenuItem(
-                          value: 3,
-                          child: Text('Level 3 · 32 pt'),
-                        ),
-                        DropdownMenuItem(
-                          value: 4,
-                          child: Text('Level 4 · 40 pt'),
+                    Row(
+                      children: [
+                        Text('選單列 pin 條狀長度：${_draft.pinBarLength} pt'),
+                        Expanded(
+                          child: Slider(
+                            value: _draft.pinBarWidth,
+                            min: 10,
+                            max: 50,
+                            divisions: 40,
+                            label: '${_draft.pinBarLength} pt',
+                            onChanged: (value) => setState(
+                              () => _draft = _draft.copyWith(
+                                pinBarLength: value.round(),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
-                      onChanged: (value) => setState(
-                        () =>
-                            _draft = _draft.copyWith(pinBarLengthLevel: value),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '10–50 pt，預設 25 pt；套用至所有 pin 的配額與倒數條。',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
                     const SizedBox(height: 8),

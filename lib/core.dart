@@ -544,7 +544,7 @@ class Preferences {
     this.rawValues = false,
     this.layout = PanelLayout.cards,
     this.theme = ThemeChoice.system,
-    this.pinBarLengthLevel = 3,
+    this.pinBarLength = 25,
     List<PinPreference> pins = const [],
     Map<String, AccountPreference> accountPreferences = const {},
     List<String> accountOrder = const [],
@@ -559,15 +559,15 @@ class Preferences {
         'refreshIntervalMinutes',
       );
     }
-    if (pinBarLengthLevel < 1 || pinBarLengthLevel > 4) {
-      throw RangeError.range(pinBarLengthLevel, 1, 4, 'pinBarLengthLevel');
+    if (pinBarLength < 10 || pinBarLength > 50) {
+      throw RangeError.range(pinBarLength, 10, 50, 'pinBarLength');
     }
   }
 
   final String selectedAgent, ompPath;
   final int refreshIntervalMinutes;
-  final int pinBarLengthLevel;
-  double get pinBarWidth => (pinBarLengthLevel + 1) * 8.0;
+  final int pinBarLength;
+  double get pinBarWidth => pinBarLength.toDouble();
   final bool dense, rawValues;
   final PanelLayout layout;
   final ThemeChoice theme;
@@ -583,7 +583,7 @@ class Preferences {
     bool? rawValues,
     PanelLayout? layout,
     ThemeChoice? theme,
-    int? pinBarLengthLevel,
+    int? pinBarLength,
     List<PinPreference>? pins,
     Map<String, AccountPreference>? accountPreferences,
     List<String>? accountOrder,
@@ -596,7 +596,7 @@ class Preferences {
     rawValues: rawValues ?? this.rawValues,
     layout: layout ?? this.layout,
     theme: theme ?? this.theme,
-    pinBarLengthLevel: pinBarLengthLevel ?? this.pinBarLengthLevel,
+    pinBarLength: pinBarLength ?? this.pinBarLength,
     pins: pins ?? this.pins,
     accountPreferences: accountPreferences ?? this.accountPreferences,
     accountOrder: accountOrder ?? this.accountOrder,
@@ -607,6 +607,15 @@ class Preferences {
     if (version != 1 && version != 2) {
       throw const _SafeException('儲存資料版本不受支援。');
     }
+    var pinBarLength = _integer(json, 'pinBarLength', 25);
+    if (!json.containsKey('pinBarLength') &&
+        json.containsKey('pinBarLengthLevel')) {
+      final level = _integer(json, 'pinBarLengthLevel', 3);
+      if (level < 1 || level > 4) {
+        throw RangeError.range(level, 1, 4, 'pinBarLengthLevel');
+      }
+      pinBarLength = (level + 1) * 8;
+    }
     return Preferences(
       selectedAgent: _optionalString(json, 'selectedAgent') ?? 'omp',
       ompPath: _optionalString(json, 'ompPath') ?? '',
@@ -615,7 +624,7 @@ class Preferences {
       rawValues: _bool(json, 'rawValues', false),
       layout: _enumValue(PanelLayout.values, json['layout'], PanelLayout.cards),
       theme: _enumValue(ThemeChoice.values, json['theme'], ThemeChoice.system),
-      pinBarLengthLevel: _integer(json, 'pinBarLengthLevel', 3),
+      pinBarLength: pinBarLength,
       pins: _list(json, 'pins').map((item) {
         final pin = _requiredMap(item);
         return version == 1
@@ -639,7 +648,7 @@ class Preferences {
     'rawValues': rawValues,
     'layout': layout.name,
     'theme': theme.name,
-    'pinBarLengthLevel': pinBarLengthLevel,
+    'pinBarLength': pinBarLength,
     'pins': pins.map((item) => item.toJson()).toList(),
     'accountPreferences': accountPreferences.map(
       (key, value) => MapEntry(key, value.toJson()),

@@ -979,6 +979,31 @@ void main() {
       await directory.delete(recursive: true);
     });
 
+    test('legacy pin bar levels retain their lengths on migration', () async {
+      final file = File('${directory.path}/preferences.json');
+      for (final version in [1, 2]) {
+        for (final level in [1, 2, 3, 4]) {
+          final legacy = Preferences().toJson()
+            ..remove('pinBarLength')
+            ..['schemaVersion'] = version
+            ..['pinBarLengthLevel'] = level;
+          final original = jsonEncode(legacy);
+          await file.writeAsString(original);
+          final storage = AppStorage(directory: directory);
+          final migrated = await storage.loadPreferences();
+          expect(migrated.pinBarLength, (level + 1) * 8);
+          expect(await file.readAsString(), original);
+          await storage.savePreferences(migrated);
+          final saved = jsonDecode(await file.readAsString()) as Map;
+          expect(saved['pinBarLength'], (level + 1) * 8);
+          expect(saved.containsKey('pinBarLengthLevel'), isFalse);
+        }
+      }
+      final upgraded = Preferences(pinBarLength: 37).toJson()
+        ..['pinBarLengthLevel'] = 2;
+      expect(Preferences.fromJson(upgraded).pinBarLength, 37);
+    });
+
     test(
       'v1 pin styles migrate in memory without losing consumer settings',
       () async {
@@ -1135,7 +1160,7 @@ void main() {
         ]).accounts;
         final first = Preferences(
           refreshIntervalMinutes: 1,
-          pinBarLengthLevel: 1,
+          pinBarLength: 10,
           pins: [
             PinPreference(
               id: 'pin-one',
@@ -1194,10 +1219,10 @@ void main() {
           directory: directory,
         ).loadPreferences();
         expect(firstReload.refreshIntervalMinutes, 1);
-        expect(firstReload.pinBarLengthLevel, 1);
+        expect(firstReload.pinBarLength, 10);
         final slowerRefresh = edited.copyWith(
           refreshIntervalMinutes: 10,
-          pinBarLengthLevel: 4,
+          pinBarLength: 50,
         );
         final storage = AppStorage(directory: directory);
         final firstSave = storage.savePreferences(first);
@@ -1234,7 +1259,7 @@ void main() {
         expect(restored.theme, ThemeChoice.dark);
         expect(restored.layout, PanelLayout.table);
         expect(restored.refreshIntervalMinutes, 10);
-        expect(restored.pinBarLengthLevel, 4);
+        expect(restored.pinBarLength, 50);
         final temporaryFiles = await directory
             .list()
             .where((entry) => entry.path.endsWith('.tmp'))
@@ -1325,17 +1350,27 @@ void main() {
 
     test('invalid pin bar lengths preserve the original settings', () async {
       final file = File('${directory.path}/preferences.json');
-      for (final level in [0, 5, 2.5, '3']) {
-        final json = Preferences().toJson()..['pinBarLengthLevel'] = level;
-        final original = jsonEncode(json);
-        await file.writeAsString(original);
-        final storage = AppStorage(directory: directory);
-        await expectLater(storage.loadPreferences(), throwsA(isA<Exception>()));
-        await expectLater(
-          storage.savePreferences(Preferences(pinBarLengthLevel: 3)),
-          throwsA(isA<Exception>()),
-        );
-        expect(await file.readAsString(), original);
+      for (final (field, invalidValues) in [
+        ('pinBarLength', [9, 51, 25.5, '25']),
+        ('pinBarLengthLevel', [0, 5, 2.5, '3']),
+      ]) {
+        for (final value in invalidValues) {
+          final json = Preferences().toJson()
+            ..remove('pinBarLength')
+            ..[field] = value;
+          final original = jsonEncode(json);
+          await file.writeAsString(original);
+          final storage = AppStorage(directory: directory);
+          await expectLater(
+            storage.loadPreferences(),
+            throwsA(isA<Exception>()),
+          );
+          await expectLater(
+            storage.savePreferences(Preferences()),
+            throwsA(isA<Exception>()),
+          );
+          expect(await file.readAsString(), original);
+        }
       }
     });
 
