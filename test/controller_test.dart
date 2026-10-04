@@ -39,6 +39,33 @@ void main() {
         as Map<String, Object?>;
   }
 
+  Map<String, Object?>? resetSeats({
+    int? count = 3,
+    DateTime? expiry,
+    DateTime? fetchedAt,
+    String provider = 'anthropic',
+  }) {
+    controller.snapshot = UsageSnapshot(
+      generatedAt: observed,
+      coverageNote: '',
+      accounts: [
+        UsageAccount(
+          key: 'member',
+          provider: provider,
+          displayName: 'Member',
+          identityKnown: true,
+          fetchedAt: observed,
+          resetSeatCount: count,
+          soonestResetSeatExpiresAt: expiry,
+          resetCreditsFetchedAt: fetchedAt ?? observed,
+          limits: const [],
+        ),
+      ],
+    );
+    return (controller.panelView()['accounts'] as List).single['resetSeats']
+        as Map<String, Object?>?;
+  }
+
   test(
     'OMP countdown changes from unstarted to running without refilling quota',
     () {
@@ -177,5 +204,78 @@ void main() {
     expect(limits.map((limit) => limit['id']), ['old']);
     expect(limits.single['status'], 'stale');
     expect(account['needsAttention'], isTrue);
+  });
+
+  test('reset seat urgency advances at seven days, three days and expiry', () {
+    final expiry = observed.add(const Duration(days: 8));
+    for (final (remaining, status) in [
+      (const Duration(days: 7, microseconds: 1), 'normal'),
+      (const Duration(days: 7), 'warning'),
+      (const Duration(days: 3, microseconds: 1), 'warning'),
+      (const Duration(days: 3), 'urgent'),
+      (const Duration(microseconds: 1), 'urgent'),
+      (Duration.zero, 'expired'),
+      (const Duration(minutes: -1), 'expired'),
+    ]) {
+      controller.now = expiry.subtract(remaining);
+      final seats = resetSeats(expiry: expiry)!;
+      expect(seats['status'], status, reason: '$remaining');
+      expect(seats['count'], '3');
+      expect(controller.snapshot!.accounts.single.resetSeatCount, 3);
+      expect(
+        (seats['countdown'] as String).contains('待來源更新'),
+        status == 'expired',
+      );
+    }
+  });
+
+  test('reset seat countdown stays positive immediately before expiry', () {
+    for (final (remaining, countdown) in [
+      (const Duration(days: 2, hours: 3), '2天3時後到期'),
+      (const Duration(hours: 2, minutes: 7), '2時7分後到期'),
+      (const Duration(minutes: 1), '1分後到期'),
+      (const Duration(seconds: 59), '不到 1 分鐘後到期'),
+      (const Duration(microseconds: 1), '不到 1 分鐘後到期'),
+    ]) {
+      final seats = resetSeats(expiry: observed.add(remaining))!;
+      expect(seats['countdown'], countdown);
+    }
+  });
+
+  test('available reset seats retain their count when expiry is unknown', () {
+    final undated = resetSeats()!;
+    expect(undated['status'], 'missing');
+    expect(undated['count'], '3');
+    expect(undated['countdown'], '到期時間未知');
+  });
+
+  test(
+    'missing and zero reset seat counts hide the block for Claude and Codex',
+    () {
+      for (final provider in ['anthropic', 'openai-codex']) {
+        for (final count in [null, 0]) {
+          expect(resetSeats(provider: provider, count: count), isNull);
+          expect(
+            resetSeats(
+              provider: provider,
+              count: count,
+              expiry: observed.add(const Duration(hours: 1)),
+            ),
+            isNull,
+          );
+        }
+      }
+    },
+  );
+
+  test('stale reset credits retain expiry urgency and source seat count', () {
+    final seats = resetSeats(
+      provider: 'openai-codex',
+      expiry: observed.add(const Duration(hours: 3)),
+      fetchedAt: observed.subtract(const Duration(days: 1)),
+    )!;
+    expect(seats['status'], 'urgent');
+    expect(seats['count'], '3');
+    expect(seats['countdown'], '3時後到期 · 舊資料');
   });
 }

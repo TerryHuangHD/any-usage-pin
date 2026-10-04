@@ -83,6 +83,20 @@ private struct UsageLimit: Equatable {
   }
 }
 
+private struct ResetSeats: Equatable {
+  let count: String
+  let status: String
+  let countdown: String
+  let detail: String
+
+  init(_ data: [String: Any]) {
+    count = data["count"] as? String ?? "—"
+    status = data["status"] as? String ?? "missing"
+    countdown = data["countdown"] as? String ?? ""
+    detail = data["detail"] as? String ?? ""
+  }
+}
+
 private struct UsageAccount: Equatable {
   let id: String
   let provider: String
@@ -90,8 +104,7 @@ private struct UsageAccount: Equatable {
   let label: String
   let plan: String?
   let organization: String?
-  let resetSeats: String?
-  let soonestExpires: String?
+  let resetSeats: ResetSeats?
   let age: String
   let pinned: Bool
   let warning: String?
@@ -109,8 +122,7 @@ private struct UsageAccount: Equatable {
     label = data["label"] as? String ?? ""
     plan = data["plan"] as? String
     organization = data["organization"] as? String
-    resetSeats = data["resetSeats"] as? String
-    soonestExpires = data["soonestExpires"] as? String
+    resetSeats = (data["resetSeats"] as? [String: Any]).map(ResetSeats.init)
     age = data["age"] as? String ?? ""
     pinned = data["pinned"] as? Bool ?? false
     warning = data["warning"] as? String
@@ -294,15 +306,104 @@ private final class UsageLimitView: NSView {
   }
 }
 
+private final class ResetSeatsView: NSView {
+  private let stack = NSStackView()
+  private let icon = NSImageView()
+  private let title = UsageStyle.text(11, weight: .medium)
+  private let count = UsageStyle.text(15, weight: .semibold)
+  private let countdown = UsageStyle.text(11, weight: .medium)
+  private var status = "missing"
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.cornerRadius = 8
+    layer?.borderWidth = 1
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+      stack.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+      stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+    ])
+    stack.orientation = .horizontal
+    stack.distribution = .fill
+    stack.alignment = .centerY
+    stack.spacing = 6
+    icon.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)
+    icon.imageScaling = .scaleProportionallyUpOrDown
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      icon.widthAnchor.constraint(equalToConstant: 13),
+      icon.heightAnchor.constraint(equalToConstant: 13),
+    ])
+    title.stringValue = "Reset seats"
+    title.setContentHuggingPriority(.required, for: .horizontal)
+    count.font = .monospacedDigitSystemFont(ofSize: 15, weight: .semibold)
+    count.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    count.setContentCompressionResistancePriority(.required, for: .horizontal)
+    countdown.alignment = .right
+    countdown.setContentHuggingPriority(.required, for: .horizontal)
+    countdown.setContentCompressionResistancePriority(.required, for: .horizontal)
+    for field in [title, count, countdown] {
+      field.maximumNumberOfLines = 1
+      field.cell?.lineBreakMode = .byTruncatingTail
+    }
+    for child in [icon, title, count, countdown] { stack.addArrangedSubview(child) }
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    updateColors()
+  }
+
+  private func updateColors() {
+    let color: NSColor?
+    switch status {
+    case "warning": color = .systemOrange
+    case "urgent", "expired": color = .systemRed
+    case "normal": color = .systemGreen
+    default: color = nil
+    }
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      if let color = color {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let textColor = dark ? color :
+          color.blended(withFraction: status == "normal" || status == "warning" ? 0.35 : 0.18, of: .black) ?? color
+        icon.contentTintColor = color
+        count.textColor = textColor
+        countdown.textColor = textColor
+        layer?.backgroundColor = color.withAlphaComponent(0.08).cgColor
+        layer?.borderColor = color.withAlphaComponent(0.18).cgColor
+      } else {
+        icon.contentTintColor = .secondaryLabelColor
+        count.textColor = .labelColor
+        countdown.textColor = .secondaryLabelColor
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.borderColor = NSColor.clear.cgColor
+      }
+    }
+  }
+
+  func update(_ seats: ResetSeats) {
+    count.stringValue = seats.count
+    countdown.stringValue = seats.countdown
+    status = seats.status
+    updateColors()
+    toolTip = "Reset seats：\(seats.count) · \(seats.countdown)\n\(seats.detail)"
+  }
+}
+
 private final class UsageAccountView: NSView {
   private let stack = UsageStyle.vertical(12)
   private let logo = NSImageView()
   private let name = UsageStyle.text(13, weight: .semibold)
   private let label = UsageStyle.text(12)
   private let metadata = UsageStyle.text(11)
-  private let resetInfo = UsageStyle.vertical(3)
-  private let resetSeats = UsageStyle.text(11, weight: .medium)
-  private let soonestExpires = UsageStyle.text(11)
+  private let resetInfo = ResetSeatsView()
   private let warning = UsageStyle.text(11, weight: .medium)
   private let noData = UsageStyle.text(12)
   private let limitsStack = UsageStyle.vertical(12)
@@ -349,9 +450,6 @@ private final class UsageAccountView: NSView {
     header.addArrangedSubview(identity)
     UsageStyle.add(header, to: stack)
     identity.widthAnchor.constraint(equalTo: header.widthAnchor, constant: -33).isActive = true
-    UsageStyle.add(resetSeats, to: resetInfo)
-    UsageStyle.add(soonestExpires, to: resetInfo)
-    soonestExpires.textColor = .secondaryLabelColor
     UsageStyle.add(resetInfo, to: stack)
     UsageStyle.add(warning, to: stack)
     warning.textColor = .systemOrange
@@ -417,11 +515,8 @@ private final class UsageAccountView: NSView {
     metadata.stringValue = [account.plan, account.organization, account.age]
       .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     metadata.isHidden = metadata.stringValue.isEmpty
-    resetSeats.stringValue = account.resetSeats ?? ""
-    resetSeats.isHidden = account.resetSeats == nil
-    soonestExpires.stringValue = account.soonestExpires ?? ""
-    soonestExpires.isHidden = account.soonestExpires == nil
-    resetInfo.isHidden = resetSeats.isHidden && soonestExpires.isHidden
+    resetInfo.isHidden = account.resetSeats == nil
+    if let seats = account.resetSeats { resetInfo.update(seats) }
     warning.stringValue = account.warning ?? ""
     warning.isHidden = warning.stringValue.isEmpty
     noData.isHidden = !account.limits.isEmpty

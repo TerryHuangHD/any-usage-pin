@@ -524,16 +524,59 @@ class UsageController extends ChangeNotifier {
     };
   }
 
-  String _resetSeatExpiryText(UsageAccount account) {
+  Map<String, Object?> _resetSeatView(UsageAccount account) {
+    final count = account.resetSeatCount!;
     final expiry = account.soonestResetSeatExpiresAt;
-    if (expiry == null) return account.resetSeatCount == 0 ? '—' : '無資料';
-    final local = expiry.toLocal();
-    final date =
-        '${local.year}-${local.month.toString().padLeft(2, '0')}-'
-        '${local.day.toString().padLeft(2, '0')} '
-        '${local.hour.toString().padLeft(2, '0')}:'
-        '${local.minute.toString().padLeft(2, '0')}';
-    return now.isBefore(expiry) ? date : '已到期 · $date · 待來源更新';
+    final remaining = expiry?.difference(now);
+    final status = remaining == null
+        ? 'missing'
+        : remaining <= Duration.zero
+        ? 'expired'
+        : remaining <= const Duration(days: 3)
+        ? 'urgent'
+        : remaining <= const Duration(days: 7)
+        ? 'warning'
+        : 'normal';
+    final String countdown;
+    if (status == 'expired') {
+      countdown = '已到期 · 待來源更新';
+    } else if (remaining != null && remaining > Duration.zero) {
+      final minutes =
+          (remaining.inMicroseconds / Duration.microsecondsPerMinute).ceil();
+      final hours = minutes ~/ 60;
+      final days = hours ~/ 24;
+      final duration = remaining < const Duration(minutes: 1)
+          ? '不到 1 分鐘'
+          : minutes < 60
+          ? '$minutes分'
+          : hours < 24
+          ? '$hours時${minutes % 60 == 0 ? '' : '${minutes % 60}分'}'
+          : '$days天${hours % 24 == 0 ? '' : '${hours % 24}時'}';
+      countdown = '$duration後到期';
+    } else {
+      countdown = '到期時間未知';
+    }
+    final String detail;
+    if (expiry == null) {
+      detail = '最早到期 · 無資料';
+    } else {
+      final local = expiry.toLocal();
+      final date =
+          '${local.year}-${local.month.toString().padLeft(2, '0')}-'
+          '${local.day.toString().padLeft(2, '0')} '
+          '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+      detail = '最早到期 · $date';
+    }
+    final stale =
+        account.resetCreditsFetchedAt != null &&
+        _observationStale(account.resetCreditsFetchedAt);
+    return {
+      'count': count.toString(),
+      'status': status,
+      'countdown': '$countdown${stale ? ' · 舊資料' : ''}',
+      'detail': detail,
+    };
   }
 
   Map<String, Object?> _panelAccount(
@@ -596,12 +639,8 @@ class UsageController extends ChangeNotifier {
       'label': accountLabel(account),
       'plan': account.plan,
       'organization': account.orgName,
-      if (supportsResetCredits)
-        'resetSeats':
-            'Reset seats：${account.resetSeatCount ?? '無資料'}'
-            '${account.resetCreditsFetchedAt != null && _observationStale(account.resetCreditsFetchedAt) ? ' · 舊資料' : ''}',
-      if (supportsResetCredits)
-        'soonestExpires': 'Soonest expires：${_resetSeatExpiryText(account)}',
+      if (supportsResetCredits && (account.resetSeatCount ?? 0) > 0)
+        'resetSeats': _resetSeatView(account),
       'age':
           '${accountStale(account) ? '舊資料 · ' : ''}${ageText(account.fetchedAt, now)}',
       'pinned': pinnedKeys.contains(account.key),
