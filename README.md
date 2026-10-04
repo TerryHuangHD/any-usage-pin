@@ -1,23 +1,28 @@
 # AnyUsagePin
 
-**Pin your AI subscription quotas.**
-
-AnyUsagePin is a Flutter-powered macOS menu bar app for pinning AI subscription quotas. It starts with accounts already authorized in your coding agent—even when they are not signed in to the provider's desktop app. Track remaining quota, balances, and reset times across multiple accounts—without managing another set of provider logins.
-
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-000000?logo=apple&logoColor=white)
 ![Built with Flutter](https://img.shields.io/badge/Built_with-Flutter-02569B?logo=flutter&logoColor=white)
 ![OMP supported](https://img.shields.io/badge/Agent-OMP-168575)
 
-> **Available today: OMP.** OpenCode and Pi are on the [roadmap](#roadmap), not available integrations. Accounts appear when the selected agent can report their usage.
+[English](README.md) · [繁體中文](README.zh-TW.md)
+
+**Your AI subscriptions. One menu bar. No extra provider logins.**
+
+AnyUsagePin is a Flutter-powered macOS menu bar app for tracking remaining quota, balances, and reset times across **Claude (Anthropic), OpenAI / Codex, Google Antigravity, and other subscriptions** already authorized in your coding agent.
+
+**No credentials to hand over.** The app does not directly read OAuth access/refresh tokens or API keys from your system or the agent's credential store, maintain its own provider-token store, or call provider quota/model APIs directly. It reads the usage reports produced by your installed agent CLI.
+
+**No provider desktop-app sign-in required.** Agent-authorized subscriptions can appear even if Claude, Codex, or Antigravity is signed out—or its desktop app is not installed. Multiple accounts from the same provider can stay visible together.
 
 [Why this app](#why-anyusagepin) · [Get started](#quick-start) · [Customize](#make-the-menu-bar-yours) · [Supported agents](#supported-agents) · [Roadmap](#roadmap) · [Privacy](#privacy-and-local-data) · [Contribute](#development-and-contributing)
 
 ## Why AnyUsagePin?
 
-Your coding agent is already where your accounts live. AnyUsagePin starts there—not with the login state of the native Codex, Claude, or Antigravity apps. The long-term goal is subscription pinning across sources; agent-authorized accounts come first.
+**See the subscriptions your coding agent can see—not just the account signed into a desktop app.** AnyUsagePin uses agent-reported accounts and quotas, independently of the login state of native Claude, Codex, or Antigravity apps.
 
-An account signed in to OMP can appear here even if it is not signed in to that provider's desktop app, provided OMP exposes its usage. Work and personal accounts stay separate, including two subscriptions from the same provider.
+An account authorized in **OMP** can appear here without being signed into the provider's local desktop app, provided OMP can report its usage. Work and personal accounts stay separate, including two subscriptions from the same provider. This is **not anonymous access to arbitrary remote accounts**: the supported agent must already be installed, authenticated, and able to expose the account's quota.
 
+- **Credentials stay with your agent.** No token/key import, provider login flow, or app-managed credential database. Authentication stays in the agent you already use.
 - **Account-first, not provider averages.** Each account and organization/project scope keeps its own quota and identity.
 - **Pin what matters.** Keep several subscriptions together in one menu bar item, with up to two rows per pin. No automatic account selection or quota-based reshuffling.
 - **Mix text and bars freely.** Pair a countdown bar with remaining quota text—or quota bars with countdown text. Each channel can use a different window.
@@ -151,7 +156,7 @@ Official provider logos identify subscriptions. Automatic colors follow the menu
 | **OpenCode** | Planned integration | V2 token-free account inventory plus a supported per-account quota bridge; not implemented in this app |
 | **Pi** | Planned research/integration | An extension bridge with explicit account inventory and structured quota; not implemented in this app |
 
-OMP provider reports exercised with the app include **OpenAI / Codex, Claude, Google Antigravity, Grok, and Cursor**. Availability depends on your OMP version, authenticated accounts, and installed usage adapters. This is not a guarantee that every plan or login is discoverable.
+OMP provider reports exercised with the app include **Claude (Anthropic), OpenAI / Codex, Google Antigravity, Grok, and Cursor**. Provider desktop apps are not used to discover or authenticate these accounts: the source is the agent's usage report. Availability depends on your OMP version, authenticated accounts, and installed usage adapters—not the provider desktop app's current login. This does not guarantee that every subscription plan or authorized account is discoverable.
 
 **An agent's local token statistics are not subscription quota.** The app displays provider limits reported through the agent rather than deriving remaining allowances from local token spend. Anthropic-direct subscriptions and Claude pools inside Antigravity are distinct sources; API-key spend and subscription limits must not be conflated either.
 
@@ -208,11 +213,21 @@ Interfaces vary by agent version and extension. Research references:
 
 ## Privacy and local data
 
-AnyUsagePin does not provide provider login/logout, maintain provider tokens, directly read or modify the agent's credential database, switch active accounts, or send model probes. CLI calls use fixed arguments rather than interpolated shell commands; provider stderr is not surfaced in the UI.
+**Your agent owns the credentials—not this app.** AnyUsagePin does not ask you to paste tokens or keys, provide provider login/logout, directly read OAuth access/refresh tokens or API keys from system/agent credential storage, or maintain its own provider-token store. It does not switch the agent's active account or issue model probes.
 
-**The agent CLI still owns its authentication behavior.** Running it may refresh OAuth or update its own cache/history/credential state. The entire query cannot be described as side-effect-free. The macOS app is not sandboxed so it can execute your installed CLI.
+| Security / privacy question | Actual behavior |
+| --- | --- |
+| Does the app read system or agent OAuth tokens / API keys? | **No direct credential access.** It consumes CLI usage reports, not credential files or databases. |
+| Does the app call provider quota or model APIs directly? | **No.** Quota collection is delegated to the installed agent CLI; the app does not implement its own provider API client. |
+| Must Claude, Codex, or Antigravity be signed into locally? | **No desktop-app sign-in required.** The supported agent must already be authorized for the account and able to report its usage. |
+| Is the complete workflow network-free? | **No.** The CLI may contact providers; the app's update checks/downloads use GitHub over HTTPS. |
+| Does the app upload account identities or quota snapshots? | **No.** They stay in local storage and are not included in app-update requests. |
 
-Update requests go to GitHub Pages and GitHub Releases over HTTPS. They do not include provider credentials, account identifiers, or quota snapshots. Sparkle system profiling is disabled; hosting services still receive normal download/request metadata.
+Quota queries run `omp usage --json`; Anthropic re-login reminders additionally use `omp usage --provider anthropic`. These are fixed CLI arguments, not interpolated shell commands. The app reads the reports, retains normalized account/quota data, and never surfaces or persists provider stderr.
+
+**The CLI still owns authentication and network behavior.** It may use its own OAuth tokens/API keys, refresh OAuth, contact provider APIs, or update its cache/history/credential state. Invoking it is **not a guarantee of zero network calls or zero side effects**. The macOS app is not sandboxed, and the child process inherits its launch environment; use an installed agent CLI you trust.
+
+App-update requests go to GitHub Pages and GitHub Releases over HTTPS. They do not include provider credentials, account identifiers, or quota snapshots. Sparkle system profiling is disabled; hosting services still receive normal download/request metadata.
 
 Settings and normalized snapshots stay on your Mac:
 
@@ -318,4 +333,4 @@ Provider marks remain the property of their respective owners. Their use identif
 
 ### License
 
-No project license has been declared in this repository. Public source availability does not by itself grant an open-source license; provider assets retain their owners' rights.
+This project is licensed under the [MIT License](LICENSE). Copyright (c) 2026 TerryHuangHD. Provider marks and assets remain subject to their respective owners' rights and applicable terms.
