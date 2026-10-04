@@ -34,7 +34,7 @@ AnyUsagePin 是以 Flutter 打造的 macOS 選單列 app，可追蹤程式開發
 
 ### 安裝 macOS app
 
-**目前版本：[AnyUsagePin 1.1.0](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.1.0)（build 5）。** 此版本加入 B1 Orbit app 圖示、帳號獨立的重置席次與最早到期時間、精確的 10–50 pt pin 進度條長度滑桿，以及整合「選項」操作的精簡雙行面板頁尾。
+**目前版本：[AnyUsagePin 1.1.1](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.1.1)（build 6）。** 此版本加入精簡分層 pin 倒數、依到期緊急程度變色的單行重置席次摘要、Anthropic OAuth 重新登入提醒、雙語文件與 MIT 授權。
 
 1. 從 [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest) 下載 **macOS 通用版 DMG**。若要驗證檢查碼，請將 `appcast.xml` 與 `SHA256SUMS` 一併下載到同一個目錄，再執行 `shasum -a 256 -c SHA256SUMS`。
 2. 開啟 DMG，將 **AnyUsagePin.app** 拖進 **Applications（應用程式）**。

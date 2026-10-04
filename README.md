@@ -34,7 +34,7 @@ An account authorized in **OMP** can appear here without being signed into the p
 
 ### Install the macOS app
 
-**Current release: [AnyUsagePin 1.1.0](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.1.0) (build 5).** Adds the B1 Orbit app icon, account-scoped reset seats and soonest expiry, a precise 10–50 pt pin bar-length slider, and a compact two-line usage-panel footer with consolidated Options actions.
+**Current release: [AnyUsagePin 1.1.1](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.1.1) (build 6).** Adds compact tiered pin countdowns, a single-line reset-seat expiry summary with urgency colors, Anthropic OAuth re-login reminders, bilingual documentation, and an MIT license.
 
 1. Download the **macOS universal DMG** from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest). For checksum verification, also download `appcast.xml` and `SHA256SUMS` into the same directory and run `shasum -a 256 -c SHA256SUMS`.
 2. Open the DMG and drag **AnyUsagePin.app** to **Applications**.
