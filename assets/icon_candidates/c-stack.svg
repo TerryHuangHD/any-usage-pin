@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>AnyUsagePin — C / Subscription Stack</title>
+  <desc>Overlapping subscription cards with two independent quota meters, on a graphite macOS tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="213" y1="106" x2="826" y2="926" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#444D66"/><stop offset=".54" stop-color="#252D43"/><stop offset="1" stop-color="#151B2D"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(234 172) rotate(50) scale(690 680)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8C9DC9" stop-opacity=".22"/><stop offset="1" stop-color="#8C9DC9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cyan" x1="293" y1="292" x2="577" y2="728" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#91EBED"/><stop offset="1" stop-color="#35B6C5"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="345" y1="272" x2="656" y2="755" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#CBBEFF"/><stop offset="1" stop-color="#8A74DA"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="390" y1="294" x2="697" y2="750" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#E1E9F7"/>
+    </linearGradient>
+    <linearGradient id="meter" x1="431" y1="465" x2="659" y2="614" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F79EC"/><stop offset="1" stop-color="#345CCB"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="15" flood-color="#0B1020" flood-opacity=".26"/>
+    </filter>
+    <filter id="cardShadow" x="138" y="166" width="752" height="740" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#0B132C" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <g filter="url(#tileShadow)">
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#tile)"/>
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#light)"/>
+    <rect x="105.5" y="105.5" width="813" height="813" rx="182.5" stroke="#FFFFFF" stroke-opacity=".15" stroke-width="3"/>
+  </g>
+  <g filter="url(#cardShadow)">
+    <rect x="268" y="300" width="366" height="450" rx="64" transform="rotate(-16 451 525)" fill="url(#cyan)"/>
+    <rect x="322" y="280" width="366" height="450" rx="64" transform="rotate(-7 505 505)" fill="url(#violet)"/>
+    <g transform="rotate(8 551 524)">
+      <rect x="368" y="299" width="366" height="450" rx="64" fill="url(#paper)"/>
+      <rect x="369.5" y="300.5" width="363" height="447" rx="62.5" stroke="#FFFFFF" stroke-opacity=".7" stroke-width="3"/>
+      <path d="M479 359H509C517.8 359 525 366.2 525 375C525 382.4 520 388.6 513.2 390.5V415L529 431C534.8 436.8 530.7 447 522.5 447H502L499 470C498.1 476 489.9 476 489 470L486 447H465.5C457.3 447 453.2 436.8 459 431L474.8 415V390.5C468 388.6 463 382.4 463 375C463 366.2 470.2 359 479 359Z" fill="#3B5688"/>
+      <rect x="426" y="512" width="250" height="46" rx="23" fill="#CAD5EB"/>
+      <rect x="426" y="512" width="186" height="46" rx="23" fill="url(#meter)"/>
+      <rect x="426" y="599" width="250" height="46" rx="23" fill="#CAD5EB"/>
+      <rect x="426" y="599" width="116" height="46" rx="23" fill="url(#meter)"/>
+    </g>
+  </g>
+</svg>

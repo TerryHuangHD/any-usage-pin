@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AnyUsagePin · App icon 候選</title>
+  <style>
+    :root { color-scheme: light; --page: #f4f3ef; --panel: #fff; --ink: #222735; --muted: #686d79; --line: #dedfdc; --stage: #eceef2; --accent: #255cc7; }
+    :root[data-theme="dark"] { color-scheme: dark; --page: #171a21; --panel: #232731; --ink: #f1f2f7; --muted: #adb3c1; --line: #3b414e; --stage: #141821; --accent: #9cbbff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    main { max-width: 1480px; margin: 0 auto; padding: 52px 48px 32px; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 32px; margin-bottom: 30px; }
+    .eyebrow { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: .15em; }
+    h1 { margin: 0 0 12px; font-size: 34px; font-weight: 650; letter-spacing: -.045em; }
+    .intro { margin: 0; color: var(--muted); line-height: 1.7; font-size: 14px; }
+    .switch { display: flex; padding: 4px; border: 1px solid var(--line); border-radius: 12px; gap: 4px; flex-shrink: 0; }
+    button { font: inherit; cursor: pointer; color: var(--muted); border: 0; border-radius: 8px; background: transparent; padding: 9px 14px; font-size: 13px; }
+    button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 5px #00000012; }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+    .stage { display: flex; justify-content: center; align-items: center; aspect-ratio: 1; padding: 16px; background: var(--stage); }
+    .hero { display: block; width: 100%; max-width: 280px; height: auto; }
+    .details { padding: 22px 22px 18px; }
+    .label { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+    .letter { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 7px; font-size: 12px; font-weight: 700; }
+    h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; font-weight: 650; }
+    .tag { color: var(--accent); font-size: 11px; font-weight: 650; margin-left: auto; }
+    .description { font-size: 13px; color: var(--muted); line-height: 1.7; margin: 0; min-height: 66px; }
+    .sizes { display: flex; align-items: end; gap: 25px; margin: 18px 0 20px; padding: 16px 0 0; border-top: 1px solid var(--line); }
+    figure { display: flex; flex-direction: column; align-items: center; justify-content: end; margin: 0; gap: 9px; }
+    figure img { display: block; }
+    figcaption { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .downloads { display: flex; gap: 16px; font-size: 12px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 22px; display: flex; align-items: center; gap: 16px; }
+    .current { width: 52px; height: 52px; flex-shrink: 0; }
+    .footer-copy { flex: 1; }
+    .footer-copy p { font-size: 13px; line-height: 1.7; margin: 0; color: var(--muted); }
+    .footer-copy strong { color: var(--ink); font-weight: 600; }
+    .spec { font-size: 11px; text-align: right; color: var(--muted); line-height: 1.8; }
+    @media (max-width: 1100px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stage { aspect-ratio: auto; height: 280px; } }
+    @media (max-width: 580px) { main { padding: 30px 20px; } header { flex-direction: column; align-items: start; gap: 20px; } h1 { font-size: 28px; } .grid { grid-template-columns: 1fr; } footer { align-items: start; flex-wrap: wrap; } .spec { width: 100%; text-align: left; } }
+    @media print { main { padding: 20px; } .switch, .downloads { display: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">ANYUSAGEPIN / ICON EXPLORATIONS</p>
+        <h1>把額度，釘在眼前。</h1>
+        <p class="intro">第一輪四個造型方向。正式採用 Orbit 原版（B1），其餘保留作設計比較。</p>
+      </div>
+      <div class="switch" role="group" aria-label="預覽背景">
+        <button type="button" data-theme="light" aria-pressed="true">淺色背景</button>
+        <button type="button" data-theme="dark" aria-pressed="false">深色背景</button>
+      </div>
+    </header>
+    <section class="grid" aria-label="四款 app icon 候選">
+      <article class="card">
+        <div class="stage"><img class="hero" src="a-quota-pin.svg" width="1024" height="1024" alt="A：藍色底，白色圖釘內含三條額度柱"></div>
+        <div class="details">
+          <div class="label"><span class="letter">A</span><h2>Quota Pin</h2></div>
+          <p class="description">額度圖釘。把 Pin 與用量合成一個符號，最直接對應產品名稱與用途。</p>
+          <div class="sizes" aria-label="A 的實際像素尺寸預覽">
+            <figure><img src="a-quota-pin/16.png" width="16" height="16" alt="A，16 像素"><figcaption>16 px</figcaption></figure>
+            <figure><img src="a-quota-pin/32.png" width="32" height="32" alt="A，32 像素"><figcaption>32 px</figcaption></figure>
+            <figure><img src="a-quota-pin/64.png" width="64" height="64" alt="A，64 像素"><figcaption>64 px</figcaption></figure>
+          </div>
+          <div class="downloads"><a href="a-quota-pin.svg" download>SVG 原稿 ↗</a><a href="a-quota-pin/1024.png" download>1024 PNG ↗</a></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="stage"><img class="hero" src="b-orbit.svg" width="1024" height="1024" alt="B：珍珠白底，三色額度環繞著深藍圖釘"></div>
+        <div class="details">
+          <div class="label"><span class="letter">B</span><h2>Orbit</h2><span class="tag">正式採用</span></div>
+          <p class="description">環形儀表。多個額度環繞一個固定中心，偏精緻、輕盈的 macOS 工具感。</p>
+          <div class="sizes" aria-label="B 的實際像素尺寸預覽">
+            <figure><img src="b-orbit/16.png" width="16" height="16" alt="B，16 像素"><figcaption>16 px</figcaption></figure>
+            <figure><img src="b-orbit/32.png" width="32" height="32" alt="B，32 像素"><figcaption>32 px</figcaption></figure>
+            <figure><img src="b-orbit/64.png" width="64" height="64" alt="B，64 像素"><figcaption>64 px</figcaption></figure>
+          </div>
+          <div class="downloads"><a href="b-orbit.svg" download>SVG 原稿 ↗</a><a href="b-orbit/1024.png" download>1024 PNG ↗</a></div>
+          <p class="downloads"><a href="orbit.html">Orbit 定案與比較 ↗</a></p>
+        </div>
+      </article>
+      <article class="card">
+        <div class="stage"><img class="hero" src="c-stack.svg" width="1024" height="1024" alt="C：石墨色底，青紫色訂閱卡片與白色額度卡堆疊"></div>
+        <div class="details">
+          <div class="label"><span class="letter">C</span><h2>Stack</h2></div>
+          <p class="description">訂閱卡片。強調多帳戶集中管理，帶一點層次與桌面工具的實體感。</p>
+          <div class="sizes" aria-label="C 的實際像素尺寸預覽">
+            <figure><img src="c-stack/16.png" width="16" height="16" alt="C，16 像素"><figcaption>16 px</figcaption></figure>
+            <figure><img src="c-stack/32.png" width="32" height="32" alt="C，32 像素"><figcaption>32 px</figcaption></figure>
+            <figure><img src="c-stack/64.png" width="64" height="64" alt="C，64 像素"><figcaption>64 px</figcaption></figure>
+          </div>
+          <div class="downloads"><a href="c-stack.svg" download>SVG 原稿 ↗</a><a href="c-stack/1024.png" download>1024 PNG ↗</a></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="stage"><img class="hero" src="d-u-pin.svg" width="1024" height="1024" alt="D：杏橙色底，深色 U 字下方延伸出圖釘尖端"></div>
+        <div class="details">
+          <div class="label"><span class="letter">D</span><h2>U-Pin</h2></div>
+          <p class="description">品牌字標。Usage 的 U 結合釘尖，最簡潔醒目，偏獨立品牌識別。</p>
+          <div class="sizes" aria-label="D 的實際像素尺寸預覽">
+            <figure><img src="d-u-pin/16.png" width="16" height="16" alt="D，16 像素"><figcaption>16 px</figcaption></figure>
+            <figure><img src="d-u-pin/32.png" width="32" height="32" alt="D，32 像素"><figcaption>32 px</figcaption></figure>
+            <figure><img src="d-u-pin/64.png" width="64" height="64" alt="D，64 像素"><figcaption>64 px</figcaption></figure>
+          </div>
+          <div class="downloads"><a href="d-u-pin.svg" download>SVG 原稿 ↗</a><a href="d-u-pin/1024.png" download>1024 PNG ↗</a></div>
+        </div>
+      </article>
+    </section>
+    <footer>
+      <img class="current" src="../../macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png" width="52" height="52" alt="正式 app icon：B1 白底分段額度環與深藍圖釘">
+      <div class="footer-copy">
+        <p><strong>已採用 B1 · Orbit Original。</strong>左側是專案目前的正式 app icon。</p>
+        <p>第一輪草案保留作設計比較；預覽其他候選不會變更正式 icon。</p>
+      </div>
+      <div class="spec">透明邊界 · 1024 × 1024 SVG 原稿<br>PNG：16 / 32 / 64 / 128 / 256 / 512 / 1024</div>
+    </footer>
+  </main>
+  <script>
+    for (const button of document.querySelectorAll('button[data-theme]')) {
+      button.addEventListener('click', () => {
+        document.documentElement.dataset.theme = button.dataset.theme;
+        for (const item of document.querySelectorAll('button[data-theme]')) {
+          item.setAttribute('aria-pressed', String(item === button));
+        }
+      });
+    }
+  </script>
+</body>
+</html>

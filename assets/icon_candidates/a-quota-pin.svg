@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>AnyUsagePin — A / Quota Pin</title>
+  <desc>A porcelain pushpin containing three quota bars, on a sapphire macOS tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="196" y1="112" x2="844" y2="924" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#368DFF"/><stop offset=".48" stop-color="#1763E6"/><stop offset="1" stop-color="#1037A5"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(298 154) rotate(58) scale(672 696)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A5DFFF" stop-opacity=".38"/><stop offset="1" stop-color="#A5DFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="porcelain" x1="414" y1="270" x2="632" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#DCEBFF"/>
+    </linearGradient>
+    <linearGradient id="meter" x1="393" y1="382" x2="630" y2="550" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B72EC"/><stop offset="1" stop-color="#144BBD"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="15" flood-color="#071A45" flood-opacity=".24"/>
+    </filter>
+    <filter id="pinShadow" x="180" y="200" width="680" height="680" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#092973" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <g filter="url(#tileShadow)">
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#tile)"/>
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#light)"/>
+    <rect x="105.5" y="105.5" width="813" height="813" rx="182.5" stroke="#FFFFFF" stroke-opacity=".23" stroke-width="3"/>
+  </g>
+  <g filter="url(#pinShadow)">
+    <path d="M366 272H658C684.5 272 706 293.5 706 320V344C706 366.1 688.1 384 666 384H648V532L713 593C733 611.8 719.7 645 692.2 645H552L536 777C532.6 805.9 491.4 805.9 488 777L472 645H331.8C304.3 645 291 611.8 311 593L376 532V384H358C335.9 384 318 366.1 318 344V320C318 293.5 339.5 272 366 272Z" fill="url(#porcelain)"/>
+    <path d="M366 273.5H658C683.7 273.5 704.5 294.3 704.5 320" stroke="#FFFFFF" stroke-opacity=".8" stroke-width="3"/>
+  </g>
+  <g fill="url(#meter)">
+    <rect x="413" y="462" width="48" height="94" rx="16"/>
+    <rect x="488" y="421" width="48" height="135" rx="16"/>
+    <rect x="563" y="380" width="48" height="176" rx="16"/>
+  </g>
+</svg>

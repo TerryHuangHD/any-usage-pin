@@ -235,6 +235,10 @@ Normalized snapshots preserve OMP's not-started reset marker without inventing a
 
 The [Flutter layer](lib/) owns one usage controller, settings/customization, previews, polling, and normalized data. The [Swift/AppKit layer](macos/Runner/) renders one native status item containing all pins and the read-only usage panel from controller projections, and hosts the single Flutter engine in a separate retained settings window. Panel dismissal is scoped to the panel, not the settings window. Brand assets are bundled; the app does not fetch provider icons at runtime.
 
+**Initial app icon explorations:** [Compare the first four directions](assets/icon_candidates/index.html) locally, or view the [light](assets/icon_candidates/preview-light.png) / [dark](assets/icon_candidates/preview-dark.png) previews: A **Quota Pin**, B **Orbit**, C **Stack**, and D **U-Pin**. Each includes a 1024×1024 SVG source and transparent PNGs at 16, 32, 64, 128, 256, 512, and 1024 pixels. These exploration sources and previews are excluded from the Flutter bundle.
+
+**macOS app icon: B1 Orbit Original.** The [SVG source](assets/icon_candidates/b-orbit.svg) is exported into the native [Xcode AppIcon set](macos/Runner/Assets.xcassets/AppIcon.appiconset/) at 16, 32, 64, 128, 256, 512, and 1024 pixels. Its segmented quota ring retains the original B design and communicates independent account quotas more directly than B3's continuous gradient ring. [View the adopted design and B3 alternative](assets/icon_candidates/orbit.html); B1 is selected on load, with matching SVG/PNG downloads. The rejected B2 design has been removed; switching previews does not change the native app icon. View the [comparison](assets/icon_candidates/orbit-comparison.png), [light](assets/icon_candidates/orbit-preview-light.png), or [dark](assets/icon_candidates/orbit-preview-dark.png) sheet.
+
 ```sh
 flutter analyze
 flutter test test/core_test.dart test/controller_test.dart

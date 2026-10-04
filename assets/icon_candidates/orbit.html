@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>AnyUsagePin · Orbit B1 定案</title>
+  <style>
+    :root { color-scheme: light; --page: #f4f3ef; --panel: #fff; --ink: #222735; --muted: #686d79; --line: #dedfdc; --stage: #eceef2; --accent: #255cc7; --selected: #edf3ff; }
+    :root[data-theme="dark"] { color-scheme: dark; --page: #171a21; --panel: #232731; --ink: #f1f2f7; --muted: #adb3c1; --line: #3b414e; --stage: #141821; --accent: #9cbbff; --selected: #2d3d5f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    main { max-width: 1280px; margin: 0 auto; padding: 44px 48px 32px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: .15em; }
+    h1 { margin: 0 0 12px; font-size: 34px; font-weight: 650; letter-spacing: -.045em; }
+    .intro { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.7; }
+    .switch { display: flex; padding: 4px; border: 1px solid var(--line); border-radius: 12px; gap: 4px; flex-shrink: 0; }
+    button { font: inherit; cursor: pointer; color: var(--muted); border: 0; border-radius: 8px; background: transparent; padding: 9px 14px; font-size: 13px; }
+    button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 5px #00000012; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    button:focus-visible, a:focus-visible, .pick:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    form { margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; border: 0; padding: 0; margin: 0; min-width: 0; }
+    legend { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .card { position: relative; min-width: 0; background: var(--panel); border: 2px solid var(--line); border-radius: 20px; overflow: hidden; }
+    .card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--selected); }
+    .card:focus-within { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .choice { position: absolute; top: 19px; right: 19px; z-index: 1; width: 19px; height: 19px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+    .stage { display: flex; justify-content: center; align-items: center; height: 304px; padding: 20px; background: var(--stage); cursor: pointer; }
+    .hero { display: block; width: 100%; max-width: 280px; height: auto; }
+    .details { padding: 22px; }
+    .label { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .code { display: grid; place-items: center; width: 32px; height: 26px; border: 1px solid var(--line); border-radius: 7px; font-size: 12px; font-weight: 700; }
+    h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; font-weight: 650; }
+    .tag { color: var(--muted); font-size: 11px; margin-left: auto; }
+    .description { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 0; min-height: 66px; }
+    .sizes { display: flex; align-items: end; gap: 28px; margin: 18px 0 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+    figure { display: flex; flex-direction: column; align-items: center; justify-content: end; margin: 0; gap: 9px; }
+    figure img { display: block; }
+    figcaption { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .pick { display: block; text-align: center; cursor: pointer; padding: 11px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; font-weight: 600; background: var(--page); }
+    .selected .pick { background: var(--selected); border-color: var(--accent); color: var(--accent); }
+    .selected .pick::after { content: " ✓"; }
+    .selection { margin-top: 26px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+    #selection-status { font-size: 14px; line-height: 1.7; font-weight: 600; }
+    .selection p { font-size: 12px; color: var(--muted); line-height: 1.7; margin: 4px 0 0; }
+    .downloads { display: flex; gap: 18px; font-size: 12px; flex-shrink: 0; }
+    [hidden] { display: none !important; }
+    footer { margin-top: 22px; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; color: var(--muted); line-height: 1.8; }
+    @media (max-width: 860px) { main { padding: 30px 24px; } header { align-items: start; flex-direction: column; gap: 20px; } .grid { grid-template-columns: 1fr; } .stage { height: 280px; } .description { min-height: 0; } .selection { flex-direction: column; align-items: start; } footer { flex-direction: column; gap: 8px; } }
+    @media print { .switch, .choice, .pick, .downloads { display: none; } main { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">ANYUSAGEPIN / ORBIT REFINEMENTS</p>
+        <h1>Orbit，選 B1。</h1>
+        <p class="intro">分段環更貼近多帳戶額度儀表。選定 B1 原版；B3 保留作比較。</p>
+      </div>
+      <div class="switch" role="group" aria-label="預覽背景">
+        <button type="button" data-theme="light" aria-pressed="true">淺色背景</button>
+        <button type="button" data-theme="dark" aria-pressed="false">深色背景</button>
+      </div>
+    </header>
+    <form id="icon-choices">
+      <fieldset class="grid">
+        <legend>選擇一款 Orbit app icon</legend>
+        <article class="card" data-code="B1" data-name="Orbit Original" data-source="b-orbit">
+          <input class="choice" type="radio" name="icon" value="B1" id="choice-b1" aria-label="預覽 B1：Orbit 原版" checked>
+          <label class="stage" for="choice-b1"><img class="hero" src="b-orbit.svg" width="1024" height="1024" alt="B1 原版：三段彩色額度環，中央深藍圖釘"></label>
+          <div class="details">
+            <div class="label"><span class="code">B1</span><h2>Original</h2><span class="tag">正式採用</span></div>
+            <p class="description">分段環更清楚地表達多帳戶額度，並保留原版的留白與比例。選定此版。</p>
+            <div class="sizes" aria-label="B1 尺寸預覽">
+              <figure><img src="b-orbit/16.png" width="16" height="16" alt="B1，16 像素"><figcaption>16 px</figcaption></figure>
+              <figure><img src="b-orbit/32.png" width="32" height="32" alt="B1，32 像素"><figcaption>32 px</figcaption></figure>
+              <figure><img src="b-orbit/64.png" width="64" height="64" alt="B1，64 像素"><figcaption>64 px</figcaption></figure>
+            </div>
+            <label class="pick" for="choice-b1">預覽 B1</label>
+          </div>
+        </article>
+        <article class="card" data-code="B3" data-name="Orbit Flow" data-source="b3-orbit-flow">
+          <input class="choice" type="radio" name="icon" value="B3" id="choice-b3" aria-label="預覽 B3：Orbit 漸層環">
+          <label class="stage" for="choice-b3"><img class="hero" src="b3-orbit-flow.svg" width="1024" height="1024" alt="B3 漸層環：連續四色漸層圓環，中央放大的深藍圖釘"></label>
+          <div class="details">
+            <div class="label"><span class="code">B3</span><h2>Flow</h2><span class="tag">備選版本</span></div>
+            <p class="description">彩色環連成一體，圖釘略放大。更柔和、偏品牌標誌；較不像分段額度儀表。</p>
+            <div class="sizes" aria-label="B3 尺寸預覽">
+              <figure><img src="b3-orbit-flow/16.png" width="16" height="16" alt="B3，16 像素"><figcaption>16 px</figcaption></figure>
+              <figure><img src="b3-orbit-flow/32.png" width="32" height="32" alt="B3，32 像素"><figcaption>32 px</figcaption></figure>
+              <figure><img src="b3-orbit-flow/64.png" width="64" height="64" alt="B3，64 像素"><figcaption>64 px</figcaption></figure>
+            </div>
+            <label class="pick" for="choice-b3">預覽 B3</label>
+          </div>
+        </article>
+      </fieldset>
+    </form>
+    <section class="selection" aria-label="目前選擇">
+      <div>
+        <output id="selection-status" for="choice-b1 choice-b3" role="status" aria-live="polite">目前預覽 B1 · Orbit Original（正式 app icon）</output>
+        <p>B1 已套用至 macOS AppIcon；切換候選只影響此頁預覽，不會變更正式 app icon。</p>
+      </div>
+      <div class="downloads" id="selection-downloads" hidden>
+        <a id="selected-svg" download>下載所選 SVG ↗</a>
+        <a id="selected-png" download>下載所選 1024 PNG ↗</a>
+      </div>
+    </section>
+    <footer>
+      <a href="index.html">← 第一輪四款設計</a>
+      <span>SVG 原稿 · 透明 PNG 16 / 32 / 64 / 128 / 256 / 512 / 1024</span>
+    </footer>
+  </main>
+  <script>
+    for (const button of document.querySelectorAll('button[data-theme]')) {
+      button.addEventListener('click', () => {
+        document.documentElement.dataset.theme = button.dataset.theme;
+        for (const item of document.querySelectorAll('button[data-theme]')) {
+          item.setAttribute('aria-pressed', String(item === button));
+        }
+      });
+    }
+    function updateSelection() {
+      for (const card of document.querySelectorAll('.card')) {
+        const selected = card.querySelector('.choice').checked;
+        card.classList.toggle('selected', selected);
+        if (selected) {
+          const status = card.dataset.code === 'B1' ? '正式 app icon' : '備選，未套用';
+          document.getElementById('selection-status').textContent = `目前預覽 ${card.dataset.code} · ${card.dataset.name}（${status}）`;
+          document.getElementById('selected-svg').href = `${card.dataset.source}.svg`;
+          document.getElementById('selected-png').href = `${card.dataset.source}/1024.png`;
+          document.getElementById('selection-downloads').hidden = false;
+        }
+      }
+    }
+    document.getElementById('icon-choices').addEventListener('change', updateSelection);
+    updateSelection();
+  </script>
+</body>
+</html>

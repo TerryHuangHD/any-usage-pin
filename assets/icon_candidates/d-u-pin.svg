@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>AnyUsagePin — D / U-Pin</title>
+  <desc>A bold Usage U with a pin needle, on a warm apricot macOS tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="239" y1="111" x2="780" y2="918" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE4BA"/><stop offset=".52" stop-color="#FFC583"/><stop offset="1" stop-color="#F69B68"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(290 182) rotate(58) scale(611 637)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".32"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ink" x1="332" y1="316" x2="694" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3D405A"/><stop offset="1" stop-color="#1C2137"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="15" flood-color="#614329" flood-opacity=".22"/>
+    </filter>
+    <filter id="symbolShadow" x="188" y="218" width="648" height="672" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#9C572D" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <g filter="url(#tileShadow)">
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#tile)"/>
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#light)"/>
+    <rect x="105.5" y="105.5" width="813" height="813" rx="182.5" stroke="#FFFFFF" stroke-opacity=".40" stroke-width="3"/>
+  </g>
+  <g filter="url(#symbolShadow)" fill="url(#ink)">
+    <path d="M302 286H342C364.1 286 382 303.9 382 326V494C382 566.9 439.1 626 512 626C584.9 626 642 566.9 642 494V326C642 303.9 659.9 286 682 286H722C744.1 286 762 303.9 762 326V494C762 615.3 675.6 715.8 560.9 738.9L536 788C526.1 807.6 497.9 807.6 488 788L463.1 738.9C348.4 715.8 262 615.3 262 494V326C262 303.9 279.9 286 302 286Z"/>
+  </g>
+</svg>

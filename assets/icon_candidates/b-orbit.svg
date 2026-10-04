@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>AnyUsagePin — B / Orbit</title>
+  <desc>Three independent colored quota arcs around a central ink-blue pushpin, on a pearl macOS tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="248" y1="110" x2="738" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F6F7FD"/><stop offset="1" stop-color="#E3E6F2"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="424" y1="360" x2="595" y2="672" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#344B7A"/><stop offset="1" stop-color="#14264B"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="512" y1="260" x2="764" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#387DFF"/><stop offset="1" stop-color="#32BBD0"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="512" y1="764" x2="260" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B63DF"/><stop offset="1" stop-color="#625CD5"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="15" flood-color="#24324D" flood-opacity=".20"/>
+    </filter>
+    <filter id="symbolShadow" x="168" y="168" width="688" height="688" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#53608A" flood-opacity=".15"/>
+    </filter>
+  </defs>
+  <g filter="url(#tileShadow)">
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#tile)"/>
+    <rect x="105.5" y="105.5" width="813" height="813" rx="182.5" stroke="#FFFFFF" stroke-width="3"/>
+  </g>
+  <circle cx="512" cy="512" r="250" stroke="#DCE1EF" stroke-width="74"/>
+  <g stroke-width="74" stroke-linecap="round" filter="url(#symbolShadow)">
+    <path d="M512 262A250 250 0 0 1 749.8 589.3" stroke="url(#blue)"/>
+    <path d="M658.9 714.3A250 250 0 0 1 265.8 555.4" stroke="url(#violet)"/>
+    <path d="M290.2 396.8A250 250 0 0 1 410.3 283.6" stroke="#F4AD61"/>
+  </g>
+  <path d="M444 365H580C597.7 365 612 379.3 612 397C612 414.7 597.7 429 580 429H567V497L608 540C620.9 553.5 611.3 576 592.6 576H535L527 650C525.1 668.1 498.9 668.1 497 650L489 576H431.4C412.7 576 403.1 553.5 416 540L457 497V429H444C426.3 429 412 414.7 412 397C412 379.3 426.3 365 444 365Z" fill="url(#ink)"/>
+</svg>

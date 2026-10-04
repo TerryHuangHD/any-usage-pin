@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>AnyUsagePin — B3 / Orbit Flow</title>
+  <desc>A seamless blue, cyan, violet and apricot orbit with a larger central pushpin, on the original pearl macOS tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="248" y1="110" x2="738" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F6F7FD"/><stop offset="1" stop-color="#E3E6F2"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="424" y1="360" x2="595" y2="672" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45608F"/><stop offset="1" stop-color="#192D55"/>
+    </linearGradient>
+    <linearGradient id="topRight" x1="512" y1="266" x2="758" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4387FA"/><stop offset="1" stop-color="#45BED2"/>
+    </linearGradient>
+    <linearGradient id="bottomRight" x1="758" y1="512" x2="512" y2="758" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45BED2"/><stop offset="1" stop-color="#9272E1"/>
+    </linearGradient>
+    <linearGradient id="bottomLeft" x1="512" y1="758" x2="266" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9272E1"/><stop offset="1" stop-color="#F0AD79"/>
+    </linearGradient>
+    <linearGradient id="topLeft" x1="266" y1="512" x2="512" y2="266" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0AD79"/><stop offset="1" stop-color="#4387FA"/>
+    </linearGradient>
+    <filter id="tileShadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="15" flood-color="#24324D" flood-opacity=".20"/>
+    </filter>
+    <filter id="ringShadow" x="168" y="168" width="688" height="688" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#53608A" flood-opacity=".17"/>
+    </filter>
+  </defs>
+  <g filter="url(#tileShadow)">
+    <rect x="104" y="104" width="816" height="816" rx="184" fill="url(#tile)"/>
+    <rect x="105.5" y="105.5" width="813" height="813" rx="182.5" stroke="#FFFFFF" stroke-width="3"/>
+  </g>
+  <g stroke-width="88" stroke-linecap="butt" filter="url(#ringShadow)">
+    <path d="M512 266A246 246 0 0 1 758 512" stroke="url(#topRight)"/>
+    <path d="M758 512A246 246 0 0 1 512 758" stroke="url(#bottomRight)"/>
+    <path d="M512 758A246 246 0 0 1 266 512" stroke="url(#bottomLeft)"/>
+    <path d="M266 512A246 246 0 0 1 512 266" stroke="url(#topLeft)"/>
+  </g>
+  <circle cx="512" cy="512" r="203" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="2"/>
+  <path transform="translate(-61.44 -61.44) scale(1.12)" d="M444 365H580C597.7 365 612 379.3 612 397C612 414.7 597.7 429 580 429H567V497L608 540C620.9 553.5 611.3 576 592.6 576H535L527 650C525.1 668.1 498.9 668.1 497 650L489 576H431.4C412.7 576 403.1 553.5 416 540L457 497V429H444C426.3 429 412 414.7 412 397C412 379.3 426.3 365 444 365Z" fill="url(#ink)"/>
+</svg>
