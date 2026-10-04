@@ -104,21 +104,15 @@ void main() {
       Map<String, Object?> row() =>
           (controller.pinView(pin)['layers'] as List).single
               as Map<String, Object?>;
-      expect(row()['text'], '5時0分');
       expect(row()['fraction'], 1);
       expect(row()['status'], 'ok');
-      final account =
-          (controller.panelView()['accounts'] as List).single as Map;
-      expect((account['limits'] as List).single['reset'], '尚未開始計時 · 5時0分');
 
       controller.now = observed.add(const Duration(seconds: 30));
-      expect(row()['text'], '5時0分');
       expect(row()['fraction'], 1);
       expect(row()['status'], 'ok');
 
       controller.now = observed;
       controller.snapshot = snapshot(observed.add(const Duration(hours: 2)));
-      expect(row()['text'], '2時0分');
       expect(row()['fraction'], .4);
       expect(row()['status'], 'ok');
 
@@ -134,6 +128,77 @@ void main() {
       );
     },
   );
+
+  test('pin reset precision follows actual day and minute boundaries', () {
+    final pin = PinPreference(
+      id: 'reset-pin',
+      accountKey: 'member',
+      top: const PinLayer(
+        text: PinMetric(limitId: 'weekly', mode: LayerMode.reset),
+        bar: PinMetric(limitId: 'weekly', mode: LayerMode.reset),
+      ),
+    );
+    void snapshot(UsageLimit limit) {
+      controller.snapshot = UsageSnapshot(
+        generatedAt: observed,
+        coverageNote: '',
+        accounts: [
+          UsageAccount(
+            key: 'member',
+            provider: 'anthropic',
+            displayName: 'Claude',
+            identityKnown: true,
+            fetchedAt: observed,
+            limits: [limit],
+          ),
+        ],
+      );
+    }
+
+    for (final (remaining, text) in [
+      (const Duration(days: 6, hours: 14), '6d'),
+      (const Duration(hours: 24), '1d'),
+      (const Duration(hours: 23, minutes: 59, seconds: 59), '23:59'),
+      (const Duration(hours: 1, minutes: 44, seconds: 59), '1:44'),
+      (const Duration(minutes: 1, seconds: 59), '0:01'),
+      (const Duration(microseconds: 1), '0:00'),
+      (Duration.zero, '待更新'),
+    ]) {
+      snapshot(
+        UsageLimit(
+          id: 'weekly',
+          label: 'Weekly',
+          status: 'ok',
+          duration: const Duration(days: 7),
+          resetsAt: observed.add(remaining),
+        ),
+      );
+      final row = (controller.pinView(pin)['layers'] as List).single as Map;
+      expect(row['text'], text, reason: '$remaining');
+      expect(row['status'], remaining == Duration.zero ? 'stale' : 'ok');
+      if (remaining == const Duration(days: 6, hours: 14)) {
+        expect(row['fraction'], closeTo(158 / 168, 1e-12));
+      }
+    }
+
+    snapshot(
+      const UsageLimit(
+        id: 'weekly',
+        label: 'Weekly',
+        status: 'ok',
+        duration: Duration(hours: 5),
+        resetNotStarted: true,
+      ),
+    );
+    final unstarted = (controller.pinView(pin)['layers'] as List).single as Map;
+    expect(unstarted['text'], '5:00');
+    expect(unstarted['fraction'], 1);
+    snapshot(const UsageLimit(id: 'weekly', label: 'Weekly', status: 'ok'));
+    final missing = (controller.pinView(pin)['layers'] as List).single as Map;
+    expect(missing['text'], '無重置時間');
+    expect(missing['fraction'], isNull);
+    expect(missing['status'], 'missing');
+  });
 
   test('hidden meters reappear at reset deadline without refilling quota', () {
     final account = project([

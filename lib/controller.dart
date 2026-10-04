@@ -429,7 +429,12 @@ class UsageController extends ChangeNotifier {
       if (textMetric != null) {
         final limit = findLimit(textMetric);
         text =
-            limit?.valueText(textMetric.mode, now, raw: prefs.rawValues) ??
+            limit?.valueText(
+              textMetric.mode,
+              now,
+              raw: prefs.rawValues,
+              compactReset: true,
+            ) ??
             '無資料';
         status = channelStatus(
           limit,
@@ -437,7 +442,10 @@ class UsageController extends ChangeNotifier {
               ? limit != null && limit.resetState(now) != ResetState.unknown
               : text != '無資料',
         );
-        describe(row, '文字', textMetric, limit, text, status);
+        final detail = textMetric.mode == LayerMode.reset
+            ? limit?.valueText(textMetric.mode, now) ?? text
+            : text;
+        describe(row, '文字', textMetric, limit, detail, status);
       }
       final barMetric = layer.bar;
       if (barMetric != null) {

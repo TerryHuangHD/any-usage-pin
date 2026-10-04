@@ -127,13 +127,15 @@ Under **Customize / 客製化顯示 → Panel appearance / 面板外觀**, adjus
 
 The editor's preview stays below the scrollable settings. Changes remain a draft until **Apply**, which saves and updates the display without leaving customization; you can continue editing or apply again. **Cancel** and the back button discard only changes made since the last successful apply. Resetting display defaults does not reset the CLI path or log out accounts.
 
+Menu bar reset-countdown text and customization previews use **tiered precision**: below 24 hours, `H:MM` without a leading hour zero (`1:44`, `0:05`); at 24 hours or more, whole remaining days rounded down (`6d` for 6 days 14 hours). The day boundary uses the actual remaining duration, so 23 hours 59 minutes 59 seconds still displays `23:59`, not `1d`. A positive countdown below one minute displays `0:00`; at the actual deadline it changes to **待更新**, never a fabricated refill. Missing reset times retain **無重置時間**. Account-panel and tooltip countdowns keep their more detailed wording. Quota text, bar ratios, saved row/window choices, and the native bars' **4 pt thickness** are unchanged.
+
 A countdown bar means:
 
 ```text
 remaining-time ratio = time until reset / source-reported window duration
 ```
 
-It updates on the existing 30-second clock. When OMP omits the reset time (or returns `null`) and supplies a positive window duration, the window has not started: the countdown shows the full duration (for example, **5時0分** for a five-hour window) and a full bar, without ticking down until OMP reports an actual reset time. The panel and pin tooltips identify this as **尚未開始計時**. This does not refill the remaining quota. Missing/nonpositive window durations or malformed reset times still produce an outlined `?` bar, not a fabricated countdown. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
+It updates on the existing 30-second clock. When OMP omits the reset time (or returns `null`) and supplies a positive window duration, the window has not started: the pin countdown shows the full duration (for example, **5:00** for a five-hour window; **5時0分** in the panel/tooltip) and a full bar, without ticking down until OMP reports an actual reset time. The panel and pin tooltips identify this as **尚未開始計時**. This does not refill the remaining quota. Missing/nonpositive window durations or malformed reset times still produce an outlined `?` bar, not a fabricated countdown. A healthy text channel cannot conceal a missing or stale bar; tooltips identify each channel's window and source age.
 
 OpenAI Codex and Claude account panels also show **Reset seats** (OMP's reported available saved-reset count) and **Soonest expires** (the earliest valid expiry among available credits). Expiry times use the Mac's local time. Redeemed credits and credits already expired at the source observation are excluded; optional missing credit statuses are accepted. A reported zero displays **0** with no expiry (`—`), while missing or malformed counts stay **無資料**, not zero. Reset credits remain isolated by account, retain their own observation time through caching/merging, and are read-only here—the app does not redeem them.
 

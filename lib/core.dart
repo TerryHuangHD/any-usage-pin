@@ -87,7 +87,12 @@ class UsageLimit {
     return null;
   }
 
-  String valueText(LayerMode mode, DateTime now, {bool raw = false}) {
+  String valueText(
+    LayerMode mode,
+    DateTime now, {
+    bool raw = false,
+    bool compactReset = false,
+  }) {
     if (mode == LayerMode.reset) {
       final state = resetState(now);
       if (state == ResetState.unknown) return '無重置時間';
@@ -95,6 +100,11 @@ class UsageLimit {
       final difference = state == ResetState.notStarted
           ? duration!
           : resetsAt!.difference(now);
+      if (compactReset) {
+        if (difference.inDays > 0) return '${difference.inDays}d';
+        final minutes = (difference.inMinutes % 60).toString().padLeft(2, '0');
+        return '${difference.inHours}:$minutes';
+      }
       if (difference.inSeconds < 60) return '<1分';
       final minutes = (difference.inSeconds / 60).ceil();
       if (minutes < 60) return '$minutes分';
