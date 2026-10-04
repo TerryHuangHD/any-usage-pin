@@ -29,7 +29,7 @@ An account signed in to OMP can appear here even if it is not signed in to that 
 
 ### Install the macOS app
 
-**Current release: [AnyUsagePin 1.0.2](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.0.2) (build 3).** Adds Sparkle in-app updates and panel version notices, alongside grouped menu bar pins, separate glass usage and settings windows, optional launch at login, and a configurable 1–10 minute refresh interval.
+**Current release: [AnyUsagePin 1.1.0](https://github.com/TerryHuangHD/any-usage-pin/releases/tag/v1.1.0) (build 5).** Adds the B1 Orbit app icon, account-scoped reset seats and soonest expiry, a precise 10–50 pt pin bar-length slider, and a compact two-line usage-panel footer with consolidated Options actions.
 
 1. Download the **macOS universal DMG** from [GitHub Releases](https://github.com/TerryHuangHD/any-usage-pin/releases/latest). For checksum verification, also download `appcast.xml` and `SHA256SUMS` into the same directory and run `shasum -a 256 -c SHA256SUMS`.
 2. Open the DMG and drag **AnyUsagePin.app** to **Applications**.
