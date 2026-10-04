@@ -452,6 +452,7 @@ private final class UsagePanelController: NSViewController {
   var onRefresh: (() -> Void)?
   var onSettings: (() -> Void)?
   var onUpdate: (() -> Void)?
+  var onQuit: (() -> Void)?
   private let scroll = NSScrollView()
   private let document = UsageDocumentView()
   private let content = UsageStyle.vertical(12)
@@ -460,11 +461,13 @@ private final class UsagePanelController: NSViewController {
   private let focusNotice = UsageStyle.text(12)
   private let notices = UsageStyle.text(11)
   private let expand = NSButton(title: "展開全部帳號", target: nil, action: nil)
-  private let refresh = NSButton()
+  private let options = NSPopUpButton(frame: .zero, pullsDown: true)
   private let spinner = NSProgressIndicator()
   private let footerStatus = NSTextField(labelWithString: "等待來源資料")
-  private let versionStatus = UsageStyle.text(11)
-  private let updateButton = NSButton(title: "檢查更新", target: nil, action: nil)
+  private let appIdentity = NSTextField(labelWithString: "")
+  private let refreshItem = NSMenuItem(title: "更新用量", action: nil, keyEquivalent: "")
+  private let updateItem = NSMenuItem(title: "檢查更新…", action: nil, keyEquivalent: "")
+  private let updateStatus = NSMenuItem(title: "等待版本資訊", action: nil, keyEquivalent: "")
   private var accounts: [UsageAccount] = []
   private var accountViews: [String: UsageAccountView] = [:]
   private var visibleIDs: [String] = []
@@ -530,49 +533,62 @@ private final class UsagePanelController: NSViewController {
     footer.spacing = 8
     footer.translatesAutoresizingMaskIntoConstraints = false
     root.addSubview(footer)
-    refresh.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "更新用量")
-    refresh.bezelStyle = .texturedRounded
-    refresh.target = self
-    refresh.action = #selector(refreshUsage)
-    refresh.toolTip = "更新用量"
-    refresh.setAccessibilityLabel("更新用量")
-    footer.addArrangedSubview(refresh)
-    spinner.style = .spinning
-    spinner.controlSize = .small
-    spinner.isDisplayedWhenStopped = false
-    spinner.isHidden = true
-    footer.addArrangedSubview(spinner)
+    let footerInfo = UsageStyle.vertical(1)
+    footerInfo.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    footerInfo.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    appIdentity.stringValue = "AnyUsagePin \(version)"
+    appIdentity.font = .systemFont(ofSize: 11, weight: .medium)
+    appIdentity.textColor = .secondaryLabelColor
+    appIdentity.lineBreakMode = .byTruncatingTail
+    appIdentity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    UsageStyle.add(appIdentity, to: footerInfo)
+    let refreshRow = NSStackView()
+    refreshRow.orientation = .horizontal
+    refreshRow.alignment = .centerY
+    refreshRow.spacing = 4
     footerStatus.font = .systemFont(ofSize: 11)
     footerStatus.textColor = .secondaryLabelColor
     footerStatus.lineBreakMode = .byTruncatingTail
     footerStatus.setContentHuggingPriority(.defaultLow, for: .horizontal)
     footerStatus.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    footer.addArrangedSubview(footerStatus)
-    let settings = NSButton()
-    settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "開啟設定")
-    settings.bezelStyle = .texturedRounded
+    refreshRow.addArrangedSubview(footerStatus)
+    spinner.style = .spinning
+    spinner.controlSize = .small
+    spinner.isDisplayedWhenStopped = false
+    spinner.isHidden = true
+    refreshRow.addArrangedSubview(spinner)
+    UsageStyle.add(refreshRow, to: footerInfo)
+    footer.addArrangedSubview(footerInfo)
+
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    menu.addItem(NSMenuItem(title: "選項", action: nil, keyEquivalent: ""))
+    refreshItem.target = self
+    refreshItem.action = #selector(refreshUsage)
+    refreshItem.isEnabled = false
+    menu.addItem(refreshItem)
+    let settings = NSMenuItem(title: "設定…", action: #selector(openSettings), keyEquivalent: ",")
     settings.target = self
-    settings.action = #selector(openSettings)
-    settings.toolTip = "設定"
-    settings.setAccessibilityLabel("開啟設定")
-    footer.addArrangedSubview(settings)
-    let versionRow = NSStackView()
-    versionRow.orientation = .horizontal
-    versionRow.alignment = .centerY
-    versionRow.spacing = 8
-    versionRow.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(versionRow)
-    versionStatus.textColor = .secondaryLabelColor
-    versionStatus.stringValue = "等待版本資訊"
-    versionStatus.setContentHuggingPriority(.defaultLow, for: .horizontal)
-    versionRow.addArrangedSubview(versionStatus)
-    updateButton.bezelStyle = .rounded
-    updateButton.target = self
-    updateButton.action = #selector(openUpdate)
-    updateButton.isEnabled = false
-    updateButton.setContentHuggingPriority(.required, for: .horizontal)
-    updateButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-    versionRow.addArrangedSubview(updateButton)
+    menu.addItem(settings)
+    menu.addItem(.separator())
+    updateStatus.isEnabled = false
+    menu.addItem(updateStatus)
+    updateItem.target = self
+    updateItem.action = #selector(openUpdate)
+    updateItem.isEnabled = false
+    menu.addItem(updateItem)
+    menu.addItem(.separator())
+    let quit = NSMenuItem(title: "結束 AnyUsagePin", action: #selector(quitApp), keyEquivalent: "q")
+    quit.target = self
+    menu.addItem(quit)
+    options.menu = menu
+    options.bezelStyle = .rounded
+    options.font = .systemFont(ofSize: 12, weight: .semibold)
+    options.setAccessibilityLabel("選項")
+    options.setContentHuggingPriority(.required, for: .horizontal)
+    options.setContentCompressionResistancePriority(.required, for: .horizontal)
+    footer.addArrangedSubview(options)
     NSLayoutConstraint.activate([
       title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
       title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
@@ -582,39 +598,33 @@ private final class UsagePanelController: NSViewController {
       scroll.bottomAnchor.constraint(equalTo: separator.topAnchor, constant: -4),
       separator.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       separator.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      separator.bottomAnchor.constraint(equalTo: versionRow.topAnchor, constant: -8),
-      versionRow.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
-      versionRow.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
-      versionRow.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
-      versionRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 24),
+      separator.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -8),
       footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
       footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
-      footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10),
-      footer.heightAnchor.constraint(equalToConstant: 28),
-      refresh.widthAnchor.constraint(equalToConstant: 30),
-      settings.widthAnchor.constraint(equalToConstant: 30),
-      spinner.widthAnchor.constraint(equalToConstant: 16),
-      spinner.heightAnchor.constraint(equalToConstant: 16),
+      footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -8),
+      footer.heightAnchor.constraint(equalToConstant: 32),
+      spinner.widthAnchor.constraint(equalToConstant: 12),
+      spinner.heightAnchor.constraint(equalToConstant: 12),
     ])
   }
 
   func updateVersion(_ status: AppUpdateStatus, canCheck: Bool) {
     _ = view
-    updateButton.title = "檢查更新"
-    versionStatus.textColor = .secondaryLabelColor
+    updateItem.title = "檢查更新…"
+    appIdentity.textColor = .secondaryLabelColor
     switch status {
-    case .idle: versionStatus.stringValue = "等待版本資訊"
-    case .checking: versionStatus.stringValue = "檢查版本中…"
+    case .idle: updateStatus.title = "等待版本資訊"
+    case .checking: updateStatus.title = "檢查版本中…"
     case .available(let version):
-      versionStatus.stringValue = "新版 \(version) 可用"
-      versionStatus.textColor = .systemBlue
-      updateButton.title = "下載更新"
-    case .noUpdate: versionStatus.stringValue = "沒有可安裝的更新"
-    case .failed: versionStatus.stringValue = "無法確認最新版本"
-    case .disabled: versionStatus.stringValue = "自動檢查已停用"
+      updateStatus.title = "新版 \(version) 可用"
+      appIdentity.textColor = .systemBlue
+      updateItem.title = "下載更新…"
+    case .noUpdate: updateStatus.title = "沒有可安裝的更新"
+    case .failed: updateStatus.title = "無法確認最新版本"
+    case .disabled: updateStatus.title = "自動檢查已停用"
     }
-    updateButton.isEnabled = canCheck
-    updateButton.setAccessibilityLabel(updateButton.title)
+    appIdentity.toolTip = updateStatus.title
+    updateItem.isEnabled = canCheck
   }
 
   func update(_ data: [String: Any]) {
@@ -634,8 +644,8 @@ private final class UsagePanelController: NSViewController {
     let initialized = data["initialized"] as? Bool ?? false
     footerStatus.stringValue = data["footer"] as? String ??
       (loading ? "向 OMP 查詢中…" : initialized ? "用量已更新" : "等待來源資料")
-    footerStatus.toolTip = footerStatus.stringValue
-    refresh.isEnabled = initialized && !loading
+    footerStatus.toolTip = data["footerTooltip"] as? String ?? footerStatus.stringValue
+    refreshItem.isEnabled = initialized && !loading
     spinner.isHidden = !loading
     if loading { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
     notices.stringValue = (data["notices"] as? [String] ?? []).joined(separator: "\n\n")
@@ -705,6 +715,7 @@ private final class UsagePanelController: NSViewController {
   @objc private func refreshUsage() { onRefresh?() }
   @objc private func openSettings() { onSettings?() }
   @objc private func openUpdate() { onUpdate?() }
+  @objc private func quitApp() { onQuit?() }
 }
 
 private struct StatusLayer: Equatable {
@@ -871,6 +882,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     }
     usageController.onSettings = { [weak self] in self?.showSettings() }
     usageController.onUpdate = { [weak self] in self?.showUpdate() }
+    usageController.onQuit = { NSApp.terminate(nil) }
     self.usageController = usageController
     let panel = UsagePanel(
       contentRect: NSRect(x: 0, y: 0, width: 380, height: 620),

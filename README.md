@@ -70,13 +70,13 @@ The macOS bundle identifier is `com.terryhuanghd.AnyUsagePin`, defined in [AppIn
 ### Your first pins
 
 1. Open the menu bar app and review the accounts reported by OMP.
-2. Click the panel's bottom **Settings / 設定** button, then open **Customize / 客製化顯示** and add a pin for an account.
+2. Open the panel's bottom **Options / 選項** menu and choose **Settings / 設定…**, then open **Customize / 客製化顯示** and add a pin for an account.
 3. Choose the upper/lower row's text and bar windows independently.
 4. Review the preview, finish editing, then click **Apply / 套用** to save.
 
-The app has no Dock icon. All configured pins share one menu bar item, displayed side by side in their configured order. Clicking anywhere in the group opens the usage panel; with no pins, the same item shows the app launcher. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its fixed footer provides manual refresh, snapshot/query status, and a settings button. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
+The app has no Dock icon. All configured pins share one menu bar item, displayed side by side in their configured order. Clicking anywhere in the group opens the usage panel; with no pins, the same item shows the app launcher. This compact panel is read-only: it shows account-scoped remaining quotas, progress, reset timing, and data-quality warnings. Its compact fixed footer keeps **AnyUsagePin and the installed version** on the first line, with query progress or the next refresh countdown on the second. Hover over the refresh line for the original snapshot age and configured interval. A single **Options / 選項** menu contains manual refresh, settings, app-update status/actions, and quit. Manual refresh is disabled during a query. Escape, clicking outside, or switching apps hides only the panel without stopping polling.
 
-Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through settings or a status item's right-click menu, which also provides **Settings…** and, in Sparkle-enabled builds, **Check for Updates…**.
+Source settings, pin creation/editing, account aliases/order, hidden windows, and display customization live in a separate normal macOS settings window with close, minimize, and resize controls. It stays open when it loses focus, and the usage panel can open independently while settings remain visible. Closing settings hides the retained window; reopening preserves unsaved edits. Customization still requires **Apply / 套用** to save or **Cancel / 取消** to discard. Quit through the footer's **Options / 選項** menu, settings, or a status item's right-click menu, which also provides **Settings…** and, in Sparkle-enabled builds, **Check for Updates…**.
 
 Under **App behavior / App 行為**, two settings save immediately without applying or discarding source-form edits:
 
@@ -85,7 +85,7 @@ Under **App behavior / App 行為**, two settings save immediately without apply
 
 The panel, settings, customization, and editors share a neutral palette with system-blue controls. Content uses native `NSGlassEffectView` on macOS 26 and later, with `NSVisualEffectView` material on earlier releases. The settings window retains a standard system title bar and system window background; its glass content does not replace the native window controls.
 
-**OMP not found when launched from Finder?** Open the footer settings button and set the full executable path under source settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
+**OMP not found when launched from Finder?** Choose **Options / 選項 → Settings / 設定…** in the footer and set the full executable path under source settings. Leaving the path empty searches PATH and common Bun/Homebrew install locations. The displayed profile comes from the launch environment's `OMP_PROFILE`, defaulting to `default`; it is read-only, not an account or workspace switcher.
 
 Avoid running Debug and Release together: they use the same local settings.
 
@@ -93,9 +93,9 @@ Avoid running Debug and Release together: they use the same local settings.
 
 Starting with **1.0.2 (build 3)**, releases include [Sparkle 2](https://sparkle-project.org/) updates. Published 1.0.0 / 1.0.1 apps do not contain an updater; install 1.0.2 or a later release manually once before using in-app updates.
 
-The app queries update information on launch and whenever the usage panel opens, merging overlapping checks. Background checks do not interrupt startup or open an update dialog. The panel shows **新版 … 可用 / 下載更新** when a compatible, non-skipped update is available. Clicking the button opens Sparkle's standard download, verification, installation, and relaunch flow. No automatic installation is enabled.
+The app queries update information on launch and whenever the usage panel opens, merging overlapping checks. Background checks do not interrupt startup or open an update dialog. When a compatible, non-skipped update is available, the footer's app name/version turns blue and its **Options / 選項** menu shows **新版 … 可用 / 下載更新…**. The installed version remains visible; hovering over it also shows the app-update status. Choosing **下載更新…** opens Sparkle's standard download, verification, installation, and relaunch flow. No automatic installation is enabled.
 
-The panel distinguishes a failed query (**無法確認最新版本**) from no installable update (**沒有可安裝的更新**); the latter also covers skipped or system-incompatible versions, not just being on the latest version. The right-click **Check for Updates…** action is user-initiated and can rediscover a skipped version. Sparkle's automatic-check preference is respected.
+The footer's **Options / 選項** menu distinguishes a failed query (**無法確認最新版本**) from no installable update (**沒有可安裝的更新**); the latter also covers skipped or system-incompatible versions, not just being on the latest version. Both the footer's **檢查更新…** and the right-click **Check for Updates…** actions are user-initiated and can rediscover a skipped version. Sparkle's automatic-check preference is respected.
 
 The fixed feed is [`appcast.xml` on GitHub Pages](https://terryhuanghd.github.io/any-usage-pin/appcast.xml); update archives come from GitHub Releases. Update queries and downloads use HTTPS, and a failed query does not affect quota display.
 

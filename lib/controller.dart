@@ -227,7 +227,8 @@ class UsageController extends ChangeNotifier {
   void _scheduleRefresh() {
     _pollTimer?.cancel();
     final interval = Duration(minutes: preferences.refreshIntervalMinutes);
-    nextRefresh = DateTime.now().add(interval);
+    now = DateTime.now();
+    nextRefresh = now.add(interval);
     _pollTimer = Timer(interval, () => unawaited(refresh()));
   }
 
@@ -479,17 +480,33 @@ class UsageController extends ChangeNotifier {
 
   Map<String, Object?> panelView() {
     final pinnedKeys = preferences.pins.map((pin) => pin.accountKey).toSet();
+    final refreshAt = nextRefresh;
+    final String refreshStatus;
+    if (loading) {
+      refreshStatus = '向 OMP 查詢中…';
+    } else if (refreshAt != null) {
+      final remaining = refreshAt.difference(now);
+      final countdown = remaining <= Duration.zero
+          ? '即將更新'
+          : remaining < const Duration(minutes: 1)
+          ? '不到 1 分鐘後更新'
+          : '${(remaining.inSeconds / 60).ceil()} 分鐘後更新';
+      refreshStatus = '${error == null ? '下次更新' : '查詢失敗'} · $countdown';
+    } else {
+      refreshStatus = '等待來源資料';
+    }
     return {
       'initialized': initialized,
       'loading': loading,
       'theme': preferences.theme.name,
       'layout': preferences.layout.name,
       'dense': preferences.dense,
-      'footer': loading
-          ? '向 OMP 查詢中…'
-          : snapshot == null
-          ? '等待來源資料 · 每 ${preferences.refreshIntervalMinutes} 分鐘更新'
-          : '快照 ${ageText(snapshot!.generatedAt, now)} · 每 ${preferences.refreshIntervalMinutes} 分鐘更新',
+      'footer': refreshStatus,
+      'footerTooltip': [
+        refreshStatus,
+        if (snapshot != null) '快照 ${ageText(snapshot!.generatedAt, now)}',
+        '每 ${preferences.refreshIntervalMinutes} 分鐘更新',
+      ].join('\n'),
       'notices': [
         if (error != null)
           '$error${snapshot == null ? '' : '\n保留上次已知資料；來源更新時間未重設。'}',
