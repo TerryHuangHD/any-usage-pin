@@ -187,6 +187,8 @@ class UsageAccount {
     this.resetSeatCount,
     this.soonestResetSeatExpiresAt,
     this.resetCreditsFetchedAt,
+    this.oauthReloginEstimatedAt,
+    this.oauthReminderFetchedAt,
     this.issue,
     this.fetchedAt,
     List<UsageLimit> limits = const [],
@@ -199,6 +201,7 @@ class UsageAccount {
   final DateTime? fetchedAt;
   final int? resetSeatCount;
   final DateTime? soonestResetSeatExpiresAt, resetCreditsFetchedAt;
+  final DateTime? oauthReloginEstimatedAt, oauthReminderFetchedAt;
   final List<UsageLimit> limits;
   final bool disabled, identityKnown;
 
@@ -217,6 +220,8 @@ class UsageAccount {
         : _integer(json, 'resetSeatCount', 0),
     soonestResetSeatExpiresAt: _storedDate(json['soonestResetSeatExpiresAt']),
     resetCreditsFetchedAt: _storedDate(json['resetCreditsFetchedAt']),
+    oauthReloginEstimatedAt: _storedDate(json['oauthReloginEstimatedAt']),
+    oauthReminderFetchedAt: _storedDate(json['oauthReminderFetchedAt']),
     issue: _optionalString(json, 'issue'),
     fetchedAt: _storedDate(json['fetchedAt']),
     limits: _list(
@@ -242,6 +247,10 @@ class UsageAccount {
         ?.toUtc()
         .toIso8601String(),
     'resetCreditsFetchedAt': resetCreditsFetchedAt?.toUtc().toIso8601String(),
+    'oauthReloginEstimatedAt': oauthReloginEstimatedAt
+        ?.toUtc()
+        .toIso8601String(),
+    'oauthReminderFetchedAt': oauthReminderFetchedAt?.toUtc().toIso8601String(),
     'issue': issue,
     'fetchedAt': fetchedAt?.toUtc().toIso8601String(),
     'limits': limits.map((item) => item.toJson()).toList(),
@@ -261,11 +270,21 @@ class UsageSnapshot {
   final List<UsageAccount> accounts;
   final String coverageNote;
 
-  static UsageSnapshot fromOmpJson(Map<String, dynamic> payload) {
+  static UsageSnapshot fromOmpJson(
+    Map<String, dynamic> payload, {
+    String? anthropicUsageText,
+    DateTime? oauthObservedAt,
+  }) {
     final generatedAt = _epochMilliseconds(payload['generatedAt']);
     if (generatedAt == null || payload['reports'] is! List) {
       throw const _SafeException('OMP 用量資料格式不受支援，請確認 CLI 版本。');
     }
+    final oauthFetchedAt = anthropicUsageText == null
+        ? null
+        : oauthObservedAt ?? generatedAt;
+    final oauthDeadlines = anthropicUsageText == null
+        ? const <String, DateTime?>{}
+        : _anthropicReloginDeadlines(anthropicUsageText, oauthFetchedAt!);
     final accounts = <UsageAccount>[];
     for (final (index, item) in (payload['reports'] as List).indexed) {
       final report = _requiredMap(item);
@@ -328,9 +347,10 @@ class UsageSnapshot {
         final identity = identities[entry.key]!;
         final known = _identityKnown(identity);
         final limits = _uniqueLimits(entry.value);
-        final ownsResetCredits =
+        final ownsAccountMetadata =
             supportsResetCredits &&
-            _resetCreditsBelongTo(metadata, identity, grouped.length == 1);
+            _reportMetadataBelongsTo(metadata, identity, grouped.length == 1);
+        final ownsOAuthReminder = provider == 'anthropic' && ownsAccountMetadata;
         final issue = !known
             ? '用量無法可靠歸屬帳號，不能永久釘選。'
             : incomplete
@@ -347,11 +367,15 @@ class UsageSnapshot {
             limits: limits,
             fetchedAt: fetchedAt,
             plan: _text(metadata['planType']) ?? _text(metadata['plan']),
-            resetSeatCount: ownsResetCredits ? resetSeatCount : null,
-            soonestResetSeatExpiresAt: ownsResetCredits
+            resetSeatCount: ownsAccountMetadata ? resetSeatCount : null,
+            soonestResetSeatExpiresAt: ownsAccountMetadata
                 ? soonestResetSeatExpiresAt
                 : null,
-            resetCreditsFetchedAt: ownsResetCredits ? fetchedAt : null,
+            resetCreditsFetchedAt: ownsAccountMetadata ? fetchedAt : null,
+            oauthReloginEstimatedAt: ownsOAuthReminder
+                ? oauthDeadlines[_oauthIdentityLabel(identity)]
+                : null,
+            oauthReminderFetchedAt: ownsOAuthReminder ? oauthFetchedAt : null,
             issue: issue,
           ),
         );
@@ -382,6 +406,12 @@ class UsageSnapshot {
                 ? _epochMilliseconds(identity['disabledAtMs'])
                 : null,
             disabled: disabled,
+            oauthReloginEstimatedAt: provider == 'anthropic' && !disabled
+                ? oauthDeadlines[_oauthIdentityLabel(identity)]
+                : null,
+            oauthReminderFetchedAt: provider == 'anthropic' && !disabled
+                ? oauthFetchedAt
+                : null,
             issue: disabled
                 ? 'OMP 已停用此登入憑證；請在 OMP 檢查或重新登入。'
                 : '已登入，但 OMP 未回報此帳號用量。',
@@ -747,35 +777,38 @@ class OmpAdapter implements AgentAdapter {
         File(executable).absolute.parent.path,
         ..._executableDirectories(),
       };
-      final process = await Process.start(
+      final environment = {'PATH': paths.join(':')};
+      final output = await _runUsage(
+        job,
         executable,
+        directory.path,
+        environment,
         const ['usage', '--json'],
-        workingDirectory: directory.path,
-        environment: {'PATH': paths.join(':')},
-        includeParentEnvironment: true,
-        runInShell: false,
       );
-      job.process = process;
-      job.check();
-      final stdout = _boundedText(process.stdout, 8 * 1024 * 1024, job);
-      final stderr = _boundedText(process.stderr, 256 * 1024, job);
-      // Drain both pipes before waiting for exit; stderr is never surfaced or persisted.
-      final exitCode = process.exitCode.then((code) {
-        job.process = null;
-        return code;
-      });
-      final results = await Future.wait<Object>([stdout, stderr, exitCode]);
-      job.check();
-      if (results[2] != 0) {
-        throw const _SafeException('OMP 用量查詢失敗，請在 OMP 檢查登入與網路狀態。');
-      }
       dynamic decoded;
       try {
-        decoded = jsonDecode(results[0] as String);
+        decoded = jsonDecode(output);
       } on FormatException {
         throw const _SafeException('OMP 未回傳有效 JSON，請確認 CLI 版本與設定。');
       }
-      return UsageSnapshot.fromOmpJson(_requiredMap(decoded));
+      final payload = _requiredMap(decoded);
+      String? anthropicUsageText;
+      DateTime? oauthObservedAt;
+      if (_hasAnthropicAccounts(payload)) {
+        anthropicUsageText = await _runUsage(
+          job,
+          executable,
+          directory.path,
+          environment,
+          const ['usage', '--provider', 'anthropic'],
+        );
+        oauthObservedAt = DateTime.now();
+      }
+      return UsageSnapshot.fromOmpJson(
+        payload,
+        anthropicUsageText: anthropicUsageText,
+        oauthObservedAt: oauthObservedAt,
+      );
     } on _SafeException {
       rethrow;
     } catch (_) {
@@ -785,6 +818,39 @@ class OmpAdapter implements AgentAdapter {
       job.process?.kill(ProcessSignal.sigkill);
       job.process = null;
     }
+  }
+
+  Future<String> _runUsage(
+    _CliJob job,
+    String executable,
+    String directory,
+    Map<String, String> environment,
+    List<String> arguments,
+  ) async {
+    job.check();
+    final process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: directory,
+      environment: environment,
+      includeParentEnvironment: true,
+      runInShell: false,
+    );
+    job.process = process;
+    job.check();
+    final stdout = _boundedText(process.stdout, 8 * 1024 * 1024, job);
+    final stderr = _boundedText(process.stderr, 256 * 1024, job);
+    // Drain both pipes; stderr is never surfaced or persisted.
+    final exitCode = process.exitCode.then((code) {
+      job.process = null;
+      return code;
+    });
+    final results = await Future.wait<Object>([stdout, stderr, exitCode]);
+    job.check();
+    if (results[2] != 0) {
+      throw const _SafeException('OMP 用量查詢失敗，請在 OMP 檢查登入與網路狀態。');
+    }
+    return results[0] as String;
   }
 
   @override
@@ -1118,7 +1184,7 @@ DateTime? _soonestResetCreditExpiry(
   return soonest;
 }
 
-bool _resetCreditsBelongTo(
+bool _reportMetadataBelongsTo(
   Map<String, dynamic> metadata,
   Map<String, dynamic> identity,
   bool onlyAccount,
@@ -1137,6 +1203,85 @@ bool _resetCreditsBelongTo(
   return true;
 }
 
+bool _hasAnthropicAccounts(Map<String, dynamic> payload) {
+  for (final field in const ['reports', 'accountsWithoutUsage']) {
+    final rows = payload[field];
+    if (rows is! List) continue;
+    for (final row in rows) {
+      if (row is Map && row['provider'] == 'anthropic') return true;
+    }
+  }
+  return false;
+}
+
+final _ansiSequence = RegExp(r'\x1b\[[0-?]*[ -/]*[@-~]');
+final _reloginLine = RegExp(
+  r"^\s*⚠ (.+) — (?:re-login within ([0-9.dhms]+) \(Anthropic expires OAuth grants ~30d after login\)|(grant is past Anthropic's ~30d lifetime; re-login now))\s*$",
+  multiLine: true,
+);
+final _durationPart = RegExp(r'(\d+(?:\.\d+)?)(ms|d|h|m|s)');
+
+Map<String, DateTime?> _anthropicReloginDeadlines(
+  String text,
+  DateTime observedAt,
+) {
+  final deadlines = <String, DateTime?>{};
+  for (final match in _reloginLine.allMatches(
+    text.replaceAll(_ansiSequence, ''),
+  )) {
+    final duration = match.group(2);
+    final remaining = duration == null ? Duration.zero : _ompDuration(duration);
+    if (remaining == null) continue;
+    final label = match.group(1)!.trim().toLowerCase();
+    final deadline = observedAt.add(remaining);
+    // Identical display labels cannot safely distinguish conflicting grants.
+    deadlines[label] =
+        deadlines.containsKey(label) && deadlines[label] != deadline
+        ? null
+        : deadline;
+  }
+  return deadlines;
+}
+
+Duration? _ompDuration(String value) {
+  var end = 0;
+  var milliseconds = 0.0;
+  var previousUnit = double.infinity;
+  for (final part in _durationPart.allMatches(value)) {
+    if (part.start != end) return null;
+    final unit = switch (part.group(2)) {
+      'd' => Duration.millisecondsPerDay,
+      'h' => Duration.millisecondsPerHour,
+      'm' => Duration.millisecondsPerMinute,
+      's' => Duration.millisecondsPerSecond,
+      _ => 1,
+    };
+    if (unit >= previousUnit) return null;
+    previousUnit = unit.toDouble();
+    final amount = double.tryParse(part.group(1)!);
+    if (amount == null || !amount.isFinite) return null;
+    milliseconds += amount * unit;
+    end = part.end;
+  }
+  if (end != value.length ||
+      end == 0 ||
+      !milliseconds.isFinite ||
+      milliseconds > const Duration(days: 7).inMilliseconds) {
+    return null;
+  }
+  return Duration(milliseconds: milliseconds.ceil());
+}
+
+String? _oauthIdentityLabel(Map<String, dynamic> identity) {
+  final base =
+      _text(identity['email']) ??
+      _text(identity['accountId']) ??
+      _text(identity['projectId']);
+  if (base == null) return null;
+  final org = _text(identity['orgName']) ?? _text(identity['orgId']);
+  return (org == null || org == base ? base : '$base · $org').toLowerCase();
+}
+
 UsageAccount _makeAccount(
   String provider,
   String key,
@@ -1147,6 +1292,8 @@ UsageAccount _makeAccount(
   int? resetSeatCount,
   DateTime? soonestResetSeatExpiresAt,
   DateTime? resetCreditsFetchedAt,
+  DateTime? oauthReloginEstimatedAt,
+  DateTime? oauthReminderFetchedAt,
   String? issue,
   bool disabled = false,
 }) => UsageAccount(
@@ -1162,6 +1309,8 @@ UsageAccount _makeAccount(
   resetSeatCount: resetSeatCount,
   soonestResetSeatExpiresAt: soonestResetSeatExpiresAt,
   resetCreditsFetchedAt: resetCreditsFetchedAt,
+  oauthReloginEstimatedAt: oauthReloginEstimatedAt,
+  oauthReminderFetchedAt: oauthReminderFetchedAt,
   issue: issue,
   fetchedAt: fetchedAt,
   limits: limits,
@@ -1206,6 +1355,13 @@ void _mergeReportedAccount(List<UsageAccount> accounts, UsageAccount next) {
           (newCreditsTime != null && !newCreditsTime.isBefore(oldCreditsTime))
       ? next
       : previous;
+  final oldOAuthTime = previous.oauthReminderFetchedAt;
+  final newOAuthTime = next.oauthReminderFetchedAt;
+  final newestOAuth =
+      oldOAuthTime == null ||
+          (newOAuthTime != null && !newOAuthTime.isBefore(oldOAuthTime))
+      ? next
+      : previous;
   // The account age is conservative; each meter retains its own observation time.
   final limits = <String, UsageLimit>{
     for (final item in previous.limits) item.id: item,
@@ -1243,6 +1399,8 @@ void _mergeReportedAccount(List<UsageAccount> accounts, UsageAccount next) {
     resetSeatCount: newestCredits.resetSeatCount,
     soonestResetSeatExpiresAt: newestCredits.soonestResetSeatExpiresAt,
     resetCreditsFetchedAt: newestCredits.resetCreditsFetchedAt,
+    oauthReloginEstimatedAt: newestOAuth.oauthReloginEstimatedAt,
+    oauthReminderFetchedAt: newestOAuth.oauthReminderFetchedAt,
     issue: newest.issue,
     fetchedAt: retainedAt,
     limits: _uniqueLimits(limits.values.toList()),

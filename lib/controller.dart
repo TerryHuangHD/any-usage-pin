@@ -26,6 +26,19 @@ String ageText(DateTime? timestamp, DateTime now) {
   return '${age.inDays} 天前';
 }
 
+String _countdownText(Duration remaining) {
+  final minutes = (remaining.inMicroseconds / Duration.microsecondsPerMinute)
+      .ceil();
+  final hours = minutes ~/ 60;
+  final days = hours ~/ 24;
+  if (remaining < const Duration(minutes: 1)) return '不到 1 分鐘';
+  if (minutes < 60) return '$minutes分';
+  if (hours < 24) {
+    return '$hours時${minutes % 60 == 0 ? '' : '${minutes % 60}分'}';
+  }
+  return '$days天${hours % 24 == 0 ? '' : '${hours % 24}時'}';
+}
+
 class UsageController extends ChangeNotifier {
   UsageController({AppStorage? storage, DesktopBridge? desktop})
     : storage = storage ?? AppStorage(),
@@ -524,6 +537,22 @@ class UsageController extends ChangeNotifier {
     };
   }
 
+  String? _oauthReloginWarning(UsageAccount account) {
+    final deadline = account.oauthReloginEstimatedAt;
+    if (account.provider != 'anthropic' ||
+        account.disabled ||
+        deadline == null) {
+      return null;
+    }
+    final remaining = deadline.difference(now);
+    final message = remaining <= Duration.zero
+        ? '請重新登入'
+        : '${remaining < const Duration(minutes: 1) ? '' : '約'}'
+              '${_countdownText(remaining)}內重新登入';
+    return '⚠ OAuth · $message'
+        '${_observationStale(account.oauthReminderFetchedAt) ? ' · 舊資料' : ''}';
+  }
+
   Map<String, Object?> _resetSeatView(UsageAccount account) {
     final count = account.resetSeatCount!;
     final expiry = account.soonestResetSeatExpiresAt;
@@ -541,18 +570,7 @@ class UsageController extends ChangeNotifier {
     if (status == 'expired') {
       countdown = '已到期 · 待來源更新';
     } else if (remaining != null && remaining > Duration.zero) {
-      final minutes =
-          (remaining.inMicroseconds / Duration.microsecondsPerMinute).ceil();
-      final hours = minutes ~/ 60;
-      final days = hours ~/ 24;
-      final duration = remaining < const Duration(minutes: 1)
-          ? '不到 1 分鐘'
-          : minutes < 60
-          ? '$minutes分'
-          : hours < 24
-          ? '$hours時${minutes % 60 == 0 ? '' : '${minutes % 60}分'}'
-          : '$days天${hours % 24 == 0 ? '' : '${hours % 24}時'}';
-      countdown = '$duration後到期';
+      countdown = '${_countdownText(remaining)}後到期';
     } else {
       countdown = '到期時間未知';
     }
@@ -587,6 +605,7 @@ class UsageController extends ChangeNotifier {
         preferences.accountPreferences[account.key]?.hiddenLimitIds.toSet() ??
         const <String>{};
     final warnings = [
+      ?_oauthReloginWarning(account),
       if (account.issue != null) account.issue!,
       if (account.disabled && account.issue == null) 'OMP 已停用此憑證；請到 OMP 處理登入。',
       if (!account.identityKnown) '來源缺少可靠身份，不能建立持久 pin。',

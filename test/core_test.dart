@@ -70,12 +70,18 @@ UsageSnapshot _snapshot(
   List<Map<String, dynamic>> reports, {
   List<Map<String, dynamic>> missing = const [],
   List<Map<String, dynamic>> disabled = const [],
-}) => UsageSnapshot.fromOmpJson({
-  'generatedAt': _observed.millisecondsSinceEpoch,
-  'reports': reports,
-  'accountsWithoutUsage': missing,
-  'disabledCredentials': disabled,
-});
+  String? anthropicUsageText,
+  DateTime? oauthObservedAt,
+}) => UsageSnapshot.fromOmpJson(
+  {
+    'generatedAt': _observed.millisecondsSinceEpoch,
+    'reports': reports,
+    'accountsWithoutUsage': missing,
+    'disabledCredentials': disabled,
+  },
+  anthropicUsageText: anthropicUsageText,
+  oauthObservedAt: oauthObservedAt ?? _observed,
+);
 
 Future<void> _waitUntil(bool Function() condition) async {
   final watch = Stopwatch()..start();
@@ -539,6 +545,185 @@ void main() {
     );
   });
 
+  group('Anthropic OAuth relogin reminders', () {
+    String reminder(String label, String duration) =>
+        '  ⚠ $label — re-login within $duration '
+        '(Anthropic expires OAuth grants ~30d after login)';
+
+    test('colored reminders retain only estimated deadlines through caching', () {
+      const secret = 'UNRELATED_TEXT_SECRET';
+      final fetchedAt = _observed.add(const Duration(minutes: 2));
+      final report = _report();
+      (report['metadata'] as Map)['orgName'] = 'Work Organization';
+      final snapshot = _snapshot(
+        [report],
+        anthropicUsageText:
+            '\x1b[33m${reminder('MEMBER@example.invalid · Work Organization', '6d8h')}\x1b[39m\n$secret',
+        oauthObservedAt: fetchedAt,
+      );
+      final encoded = jsonEncode(snapshot.toJson());
+      final account = UsageSnapshot.fromJson(
+        jsonDecode(encoded),
+      ).accounts.single;
+      expect(
+        account.oauthReloginEstimatedAt,
+        fetchedAt.add(const Duration(days: 6, hours: 8)),
+      );
+      expect(account.oauthReminderFetchedAt, fetchedAt);
+      expect(encoded, isNot(contains(secret)));
+      final legacy = account.toJson()
+        ..remove('oauthReloginEstimatedAt')
+        ..remove('oauthReminderFetchedAt');
+      expect(UsageAccount.fromJson(legacy).oauthReloginEstimatedAt, isNull);
+    });
+
+    test('reminders cannot cross providers, members or organizations', () {
+      final accounts = _snapshot(
+        [
+          _report(),
+          _report(org: 'home'),
+          _report(email: 'other@example.invalid', account: 'other'),
+          _report(provider: 'openai-codex'),
+        ],
+        anthropicUsageText: reminder('member@example.invalid · work', '6d8h'),
+      ).accounts;
+      final owner = accounts.singleWhere(
+        (account) =>
+            account.provider == 'anthropic' &&
+            account.accountId == 'member' &&
+            account.orgId == 'work',
+      );
+      expect(
+        owner.oauthReloginEstimatedAt,
+        _observed.add(const Duration(days: 6, hours: 8)),
+      );
+      for (final account in accounts.where((account) => account != owner)) {
+        expect(account.oauthReloginEstimatedAt, isNull);
+      }
+    });
+
+    test('report reminders do not transfer to a different scoped identity', () {
+      final report = _report(
+        limits: [
+          _limit(id: 'owner', scope: {'accountId': 'member', 'orgId': 'work'}),
+          _limit(
+            id: 'other',
+            scope: {'accountId': 'other', 'orgId': 'other-work'},
+          ),
+        ],
+      );
+      (report['metadata'] as Map)['orgName'] = 'Work Organization';
+      final accounts = _snapshot(
+        [report],
+        anthropicUsageText: reminder(
+          'member@example.invalid · Work Organization',
+          '6d8h',
+        ),
+      ).accounts;
+      expect(
+        accounts
+            .singleWhere((account) => account.accountId == 'member')
+            .oauthReloginEstimatedAt,
+        _observed.add(const Duration(days: 6, hours: 8)),
+      );
+      expect(
+        accounts
+            .singleWhere((account) => account.accountId == 'other')
+            .oauthReloginEstimatedAt,
+        isNull,
+      );
+    });
+
+    test('short deadlines retain minute, second and millisecond precision', () {
+      for (final (duration, remaining) in [
+        ('2h30m', const Duration(hours: 2, minutes: 30)),
+        ('30m15s', const Duration(minutes: 30, seconds: 15)),
+        ('1.5s', const Duration(milliseconds: 1500)),
+        ('120ms', const Duration(milliseconds: 120)),
+      ]) {
+        final account = _snapshot(
+          [_report()],
+          anthropicUsageText: reminder(
+            'member@example.invalid · work',
+            duration,
+          ),
+        ).accounts.single;
+        expect(account.oauthReloginEstimatedAt, _observed.add(remaining));
+      }
+    });
+
+    test('past grants remain actionable even when usage is unavailable', () {
+      final account = _snapshot(
+        [],
+        missing: [
+          {
+            'provider': 'anthropic',
+            'type': 'oauth',
+            'email': 'member@example.invalid',
+            'orgId': 'work',
+          },
+        ],
+        anthropicUsageText:
+            "  ⚠ member@example.invalid · work — grant is past Anthropic's ~30d lifetime; re-login now",
+      ).accounts.single;
+      expect(account.oauthReloginEstimatedAt, _observed);
+      expect(account.limits, isEmpty);
+      expect(account.issue, isNotNull);
+    });
+
+    test(
+      'fresh reminder observations clear alerts despite old quota meters',
+      () {
+        final earlier = _observed.subtract(const Duration(hours: 1));
+        final reports = [
+          _report(
+            fetchedAt: earlier,
+            limits: [_limit(id: 'old')],
+          ),
+          _report(limits: [_limit(id: 'new')]),
+        ];
+        final warned = _snapshot(
+          reports,
+          anthropicUsageText: reminder('member@example.invalid · work', '6d8h'),
+        ).accounts.single;
+        expect(warned.fetchedAt, earlier);
+        expect(warned.oauthReminderFetchedAt, _observed);
+        expect(
+          warned.oauthReloginEstimatedAt,
+          _observed.add(const Duration(days: 6, hours: 8)),
+        );
+        final cleared = _snapshot(
+          reports,
+          anthropicUsageText: '',
+          oauthObservedAt: _observed.add(const Duration(minutes: 5)),
+        ).accounts.single;
+        expect(cleared.fetchedAt, earlier);
+        expect(cleared.oauthReloginEstimatedAt, isNull);
+        expect(
+          cleared.oauthReminderFetchedAt,
+          _observed.add(const Duration(minutes: 5)),
+        );
+      },
+    );
+
+    test('malformed or conflicting reminders do not invent a deadline', () {
+      for (final text in [
+        'unrelated re-login notice',
+        reminder('member@example.invalid · work', '8d'),
+        reminder('member@example.invalid · work', '2h3h'),
+        '${reminder('member@example.invalid · work', '6d8h')}\n'
+            '${reminder('member@example.invalid · work', '5d')}',
+      ]) {
+        expect(
+          _snapshot([
+            _report(),
+          ], anthropicUsageText: text).accounts.single.oauthReloginEstimatedAt,
+          isNull,
+        );
+      }
+    });
+  });
+
   group('quota units and reset boundaries', () {
     test(
       'money retains its unit while fractions remain available for a quota bar',
@@ -940,6 +1125,44 @@ void main() {
               }),
             ),
           ).timeout(const Duration(seconds: 5));
+        } finally {
+          adapter.cancel();
+        }
+      },
+      skip: !(Platform.isMacOS || Platform.isLinux),
+    );
+
+    test(
+      'cancellation also kills the OAuth reminder query child',
+      () async {
+        final payload = File('${directory.path}/usage.json');
+        await payload.writeAsString(
+          jsonEncode({
+            'generatedAt': _observed.millisecondsSinceEpoch,
+            'reports': [_report()],
+          }),
+        );
+        final executable = await _fixtureExecutable(
+          directory,
+          'if [ "\$2" = "--json" ]; then exec /bin/cat "${payload.path}"; fi\n'
+          'printf "%s" "\$\$" > "\$0.pid"\nexec /bin/sleep 120',
+        );
+        final adapter = OmpAdapter(executable: executable.path);
+        final completion = expectLater(
+          adapter.fetch(),
+          throwsA(
+            predicate<Object>((error) => error.toString().contains('已取消')),
+          ),
+        );
+        try {
+          final marker = File('${executable.path}.pid');
+          await _waitUntil(marker.existsSync);
+          final childPid = int.parse(await marker.readAsString());
+          adapter.cancel();
+          await completion.timeout(const Duration(seconds: 5));
+          await _waitUntil(
+            () => !Process.killPid(childPid, ProcessSignal.sigcont),
+          );
         } finally {
           adapter.cancel();
         }

@@ -278,4 +278,86 @@ void main() {
     expect(seats['count'], '3');
     expect(seats['countdown'], '3時後到期 · 舊資料');
   });
+
+  test(
+    'OAuth reminders stay separate from healthy quota status and count down',
+    () {
+      final deadline = observed.add(const Duration(days: 6, hours: 8));
+      controller.snapshot = UsageSnapshot(
+        generatedAt: observed,
+        coverageNote: '',
+        accounts: [
+          UsageAccount(
+            key: 'member',
+            provider: 'anthropic',
+            displayName: 'Claude',
+            identityKnown: true,
+            fetchedAt: observed,
+            oauthReloginEstimatedAt: deadline,
+            oauthReminderFetchedAt: observed,
+            limits: [
+              UsageLimit(
+                id: 'session',
+                label: 'Session',
+                status: 'ok',
+                unit: 'percent',
+                remaining: 75,
+                resetsAt: observed.add(const Duration(hours: 2)),
+              ),
+            ],
+          ),
+        ],
+      );
+      Map<String, Object?> account() =>
+          (controller.panelView()['accounts'] as List).single
+              as Map<String, Object?>;
+      expect(account()['warning'], '⚠ OAuth · 約6天8時內重新登入');
+      expect(account()['needsAttention'], isTrue);
+      expect((account()['limits'] as List).single['status'], 'ok');
+      expect((account()['limits'] as List).single['fraction'], .75);
+
+      controller.now = observed.add(const Duration(hours: 1));
+      expect(account()['warning'], '⚠ OAuth · 約6天7時內重新登入 · 舊資料');
+      controller.now = deadline;
+      expect(account()['warning'], '⚠ OAuth · 請重新登入 · 舊資料');
+    },
+  );
+
+  test('a renewed OAuth grant removes the reminder from the panel', () {
+    Map<String, Object?> account(String text) {
+      controller.snapshot = UsageSnapshot.fromOmpJson({
+        'generatedAt': observed.millisecondsSinceEpoch,
+        'reports': [
+          {
+            'provider': 'anthropic',
+            'fetchedAt': observed.millisecondsSinceEpoch,
+            'metadata': {'email': 'member@example.invalid'},
+            'limits': [
+              {
+                'id': 'session',
+                'status': 'ok',
+                'amount': {'unit': 'percent', 'remaining': 75},
+                'window': {
+                  'resetsAt': observed
+                      .add(const Duration(hours: 2))
+                      .millisecondsSinceEpoch,
+                },
+              },
+            ],
+          },
+        ],
+      }, anthropicUsageText: text);
+      return (controller.panelView()['accounts'] as List).single
+          as Map<String, Object?>;
+    }
+
+    final warned = account(
+      '  ⚠ member@example.invalid — re-login within 6d8h '
+      '(Anthropic expires OAuth grants ~30d after login)',
+    );
+    expect(warned['needsAttention'], isTrue);
+    final renewed = account('');
+    expect(renewed['warning'], isNull);
+    expect(renewed['needsAttention'], isFalse);
+  });
 }
