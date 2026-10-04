@@ -108,6 +108,69 @@ Future<File> _fixtureExecutable(Directory directory, String body) async {
 void main() {
   group('OMP account identity and resource semantics', () {
     test(
+      'Antigravity model pools retain distinct window labels after caching',
+      () {
+        final limits = [
+          for (final (model, label, shared) in [
+            ('gemini', 'Gemini', false),
+            ('3p', 'Claude & GPT (shared)', true),
+          ])
+            for (final window in ['5h', 'weekly'])
+              {
+                ..._limit(
+                  id: 'google-antigravity:$model:$window',
+                  window: window,
+                  shared: shared,
+                  group: shared ? '$model:$window' : null,
+                  durationMs: window == '5h' ? 18000000 : 604800000,
+                ),
+                'label': label,
+              },
+        ];
+        final snapshot = _snapshot([
+          _report(provider: 'google-antigravity', limits: limits),
+        ]);
+        for (final account in [
+          snapshot.accounts.single,
+          UsageSnapshot.fromJson(snapshot.toJson()).accounts.single,
+        ]) {
+          final labels = account.limits.map(account.limitLabel).toList();
+          expect(labels.toSet(), hasLength(4));
+          for (final limit in account.limits) {
+            final label = account.limitLabel(limit);
+            expect(
+              label,
+              startsWith(limit.windowId == '5h' ? '5h · ' : 'week · '),
+            );
+            expect(label, contains(limit.label));
+          }
+        }
+      },
+    );
+
+    test(
+      'window display preserves other providers and missing window metadata',
+      () {
+        final other = _snapshot([_report()]).accounts.single;
+        expect(
+          other.limitLabel(other.limits.single),
+          other.limits.single.label,
+        );
+        final antigravity = _snapshot([
+          _report(provider: 'google-antigravity'),
+        ]).accounts.single;
+        for (final window in [null, '']) {
+          final limit = UsageLimit(
+            id: 'unknown',
+            label: 'Gemini',
+            windowId: window,
+          );
+          expect(antigravity.limitLabel(limit), 'Gemini');
+        }
+      },
+    );
+
+    test(
       'two Claude members and the same member in two orgs remain independent',
       () {
         final snapshot = _snapshot([

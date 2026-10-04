@@ -105,9 +105,8 @@ class _PinEditorState extends State<PinEditor> {
     ValueChanged<PinMetric?> change, {
     required bool bar,
   }) {
-    final limits =
-        widget.controller.findAccount(_accountKey)?.limits ??
-        const <UsageLimit>[];
+    final account = widget.controller.findAccount(_accountKey);
+    final limits = account?.limits ?? const <UsageLimit>[];
     final currentMissing =
         metric != null && !limits.any((limit) => limit.id == metric.limitId);
     return Row(
@@ -135,7 +134,7 @@ class _PinEditorState extends State<PinEditor> {
                 DropdownMenuItem(
                   value: limit.id,
                   child: Text(
-                    '${limit.label}${limit.shared ? ' · 共用' : ''}',
+                    '${account!.limitLabel(limit)}${limit.shared ? ' · 共用' : ''}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1004,7 +1003,7 @@ class _AccountEditorState extends State<AccountEditor> {
                         for (final limit in widget.account.limits)
                           CheckboxListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: Text(limit.label),
+                            title: Text(widget.account.limitLabel(limit)),
                             subtitle: limit.shared
                                 ? const Text('共用資源，不重複加總')
                                 : null,

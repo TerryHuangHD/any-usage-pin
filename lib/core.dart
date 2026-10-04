@@ -215,6 +215,17 @@ class UsageAccount {
   final List<UsageLimit> limits;
   final bool disabled, identityKnown;
 
+  String limitLabel(UsageLimit limit) {
+    if (provider != 'google-antigravity') return limit.label;
+    final window = switch (limit.windowId) {
+      'weekly' => 'week',
+      final id => id,
+    };
+    return window == null || window.isEmpty
+        ? limit.label
+        : '$window · ${limit.label}';
+  }
+
   static UsageAccount fromJson(Map<String, dynamic> json) => UsageAccount(
     key: _requiredString(json, 'key'),
     provider: _requiredString(json, 'provider'),

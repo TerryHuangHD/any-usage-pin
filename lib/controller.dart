@@ -411,7 +411,7 @@ class UsageController extends ChangeNotifier {
           ? ' · 尚未開始計時'
           : '';
       tooltip.add(
-        '$row · $channel · ${limit?.label ?? '原窗口不可用'} · $mode：'
+        '$row · $channel · ${limit == null ? '原窗口不可用' : account!.limitLabel(limit)} · $mode：'
         '$value$resetNote${status == 'ok' ? '' : ' · $status'}'
         '${limit != null && limit.status != 'ok' ? ' · 來源狀態：${limit.status}' : ''}'
         ' · ${ageText(limit?.fetchedAt ?? account?.fetchedAt, now)}',
@@ -628,7 +628,7 @@ class UsageController extends ChangeNotifier {
       if (hidden.contains(limit.id) && status == 'ok') continue;
       limits.add({
         'id': limit.id,
-        'label': '${limit.label}${limit.shared ? ' · 共用' : ''}',
+        'label': '${account.limitLabel(limit)}${limit.shared ? ' · 共用' : ''}',
         'value': value,
         'reset': switch (limit.resetState(now)) {
           ResetState.unknown => '無重置時間',
