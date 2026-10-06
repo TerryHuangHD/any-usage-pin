@@ -162,7 +162,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   PageHeader(
                     title: '設定',
-                    subtitle: '來源與 app 行為',
+                    subtitle: '一般設定即時儲存；資料來源需套用',
                     actions: [
                       OutlinedButton.icon(
                         onPressed: _saving || !controller.preferencesWritable
@@ -190,62 +190,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               ),
                             ),
                         ],
-                        const SectionHeading('資料來源'),
-                        Surface(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              DropdownButtonFormField<String>(
-                                key: ValueKey(_agent),
-                                dropdownColor: Theme.of(
-                                  context,
-                                ).colorScheme.surface,
-                                initialValue: _agent,
-                                decoration: const InputDecoration(
-                                  labelText: 'Agent',
-                                ),
-                                hint: const Text('請選擇 OMP'),
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: 'omp',
-                                    child: Text('OMP'),
-                                  ),
-                                ],
-                                onChanged: _saving
-                                    ? null
-                                    : (value) => setState(() {
-                                        _agent = value;
-                                        _savedMessage = null;
-                                      }),
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _path,
-                                enabled: !_saving,
-                                onChanged: (_) =>
-                                    setState(() => _savedMessage = null),
-                                decoration: const InputDecoration(
-                                  labelText: 'OMP CLI 路徑',
-                                  hintText: '留空自動尋找，或輸入完整可執行檔路徑',
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Divider(height: 1),
-                              const SizedBox(height: 8),
-                              _metadata(
-                                context,
-                                '目前解析',
-                                controller.executablePath ?? '尚未找到',
-                              ),
-                              _metadata(
-                                context,
-                                'Profile · 只讀',
-                                controller.profile,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SectionHeading('App 行為 · 變更即儲存'),
+                        const SectionHeading('一般設定'),
                         Surface(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,121 +269,57 @@ class _SettingsPageState extends State<SettingsPage> {
                             ],
                           ),
                         ),
-                        const SectionHeading('資料與 app'),
+                        const SectionHeading('資料來源'),
                         Surface(
-                          padding: EdgeInsets.zero,
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ExpansionTile(
-                                tilePadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
+                              DropdownButtonFormField<String>(
+                                key: ValueKey(_agent),
+                                dropdownColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface,
+                                initialValue: _agent,
+                                decoration: const InputDecoration(
+                                  labelText: 'Agent',
                                 ),
-                                childrenPadding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  16,
-                                ),
-                                shape: const Border(),
-                                collapsedShape: const Border(),
-                                leading: const Icon(
-                                  Icons.storage_outlined,
-                                  size: 18,
-                                ),
-                                title: const Text('來源與資料範圍'),
-                                subtitle: const Text('只查詢選取的 agent，不合併配額'),
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        '目前僅支援 OMP；沒有 provider 登入、帳號切換或 token 編輯功能。',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      const Text(
-                                        'Profile 由啟動 app 的 OMP 環境決定，不是可切換的資料來源。',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        controller.snapshot?.coverageNote ??
-                                            '只查詢目前選取的 OMP；不讀原生 Codex、Claude 或其他 provider app 的登入。',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      const Text(
-                                        '不同帳號、窗口、共用資源與單位不合併加總。重置期限到了只代表待更新，不推測配額已補滿。',
-                                      ),
-                                    ],
+                                hint: const Text('請選擇 OMP'),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'omp',
+                                    child: Text('OMP'),
                                   ),
                                 ],
+                                onChanged: _saving
+                                    ? null
+                                    : (value) => setState(() {
+                                        _agent = value;
+                                        _savedMessage = null;
+                                      }),
                               ),
-                              const Divider(height: 1),
-                              ExpansionTile(
-                                tilePadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _path,
+                                enabled: !_saving,
+                                onChanged: (_) =>
+                                    setState(() => _savedMessage = null),
+                                decoration: const InputDecoration(
+                                  labelText: 'OMP CLI 路徑',
+                                  hintText: '留空自動尋找，或輸入完整可執行檔路徑',
                                 ),
-                                childrenPadding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  0,
-                                  16,
-                                  16,
-                                ),
-                                shape: const Border(),
-                                collapsedShape: const Border(),
-                                leading: const Icon(
-                                  Icons.privacy_tip_outlined,
-                                  size: 18,
-                                ),
-                                title: const Text('背景更新與隱私'),
-                                subtitle: Text(
-                                  '每 ${controller.preferences.refreshIntervalMinutes} 分鐘更新 · 僅本機儲存',
-                                ),
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '背景每 ${controller.preferences.refreshIntervalMinutes} 分鐘執行一次 omp usage --json；面板及設定視窗關閉仍會更新。正常刷新不清除 OMP 快取。CLI 可能依自身規則刷新 OAuth／更新快取，但本 app 不讀取或保存 bearer token。',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      const Text(
-                                        '設定與白名單用量快照存於本機 Application Support/AnyUsagePin。沒有雲端同步或遙測。',
-                                      ),
-                                    ],
-                                  ),
-                                ],
                               ),
+                              const SizedBox(height: 12),
                               const Divider(height: 1),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  10,
-                                  12,
-                                  10,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '關閉設定視窗不會停止背景更新。',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ),
-                                    TextButton.icon(
-                                      onPressed: _saving
-                                          ? null
-                                          : () => controller.desktop.quit(),
-                                      icon: const Icon(
-                                        Icons.power_settings_new,
-                                        size: 16,
-                                      ),
-                                      label: const Text('結束 app'),
-                                    ),
-                                  ],
-                                ),
+                              const SizedBox(height: 8),
+                              _metadata(
+                                context,
+                                '目前解析',
+                                controller.executablePath ?? '尚未找到',
+                              ),
+                              _metadata(
+                                context,
+                                'Profile · 只讀',
+                                controller.profile,
                               ),
                             ],
                           ),
@@ -458,6 +339,17 @@ class _SettingsPageState extends State<SettingsPage> {
                         ],
                         Row(
                           children: [
+                            TextButton.icon(
+                              onPressed: _saving
+                                  ? null
+                                  : () => controller.desktop.quit(),
+                              icon: const Icon(
+                                Icons.power_settings_new,
+                                size: 16,
+                              ),
+                              label: const Text('結束 app'),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 _savedMessage ??
