@@ -62,6 +62,47 @@ private final class UsagePanel: NSPanel {
   override var canBecomeMain: Bool { true }
 }
 
+private final class PanelResizeHandle: NSView {
+  var onResize: ((CGFloat) -> Void)?
+  private var dragStart: (mouseY: CGFloat, height: CGFloat)?
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    translatesAutoresizingMaskIntoConstraints = false
+    setAccessibilityElement(true)
+    setAccessibilityRole(.handle)
+    setAccessibilityLabel("調整面板高度")
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func draw(_ dirtyRect: NSRect) {
+    let pill = NSRect(x: bounds.midX - 18, y: bounds.midY - 2.5, width: 36, height: 5)
+    (dragStart == nil ? NSColor.tertiaryLabelColor : NSColor.secondaryLabelColor).setFill()
+    NSBezierPath(roundedRect: pill, xRadius: 2.5, yRadius: 2.5).fill()
+  }
+
+  override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeUpDown) }
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  override func mouseDown(with event: NSEvent) {
+    guard let window = window else { return }
+    // Screen coordinates stay stable while the window frame moves under the cursor.
+    dragStart = (NSEvent.mouseLocation.y, window.frame.height)
+    needsDisplay = true
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    guard let start = dragStart else { return }
+    onResize?(start.height + start.mouseY - NSEvent.mouseLocation.y)
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    dragStart = nil
+    needsDisplay = true
+  }
+}
+
 private struct UsageLimit: Equatable {
   let id: String
   let label: String
@@ -548,6 +589,10 @@ private final class UsagePanelController: NSViewController {
   var onSettings: (() -> Void)?
   var onUpdate: (() -> Void)?
   var onQuit: (() -> Void)?
+  var onResize: ((CGFloat) -> Void)? {
+    get { resizeHandle.onResize }
+    set { resizeHandle.onResize = newValue }
+  }
   private let scroll = NSScrollView()
   private let document = UsageDocumentView()
   private let content = UsageStyle.vertical(12)
@@ -558,6 +603,7 @@ private final class UsagePanelController: NSViewController {
   private let expand = NSButton(title: "展開全部帳號", target: nil, action: nil)
   private let options = NSPopUpButton(frame: .zero, pullsDown: true)
   private let spinner = NSProgressIndicator()
+  private let resizeHandle = PanelResizeHandle()
   private let footerStatus = NSTextField(labelWithString: "等待來源資料")
   private let appIdentity = NSTextField(labelWithString: "")
   private let refreshItem = NSMenuItem(title: "更新用量", action: nil, keyEquivalent: "")
@@ -684,6 +730,7 @@ private final class UsagePanelController: NSViewController {
     options.setContentHuggingPriority(.required, for: .horizontal)
     options.setContentCompressionResistancePriority(.required, for: .horizontal)
     footer.addArrangedSubview(options)
+    root.addSubview(resizeHandle)
     NSLayoutConstraint.activate([
       title.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
       title.topAnchor.constraint(equalTo: root.topAnchor, constant: 12),
@@ -696,7 +743,11 @@ private final class UsagePanelController: NSViewController {
       separator.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -8),
       footer.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
       footer.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
-      footer.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -8),
+      footer.bottomAnchor.constraint(equalTo: resizeHandle.topAnchor),
+      resizeHandle.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+      resizeHandle.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      resizeHandle.widthAnchor.constraint(equalToConstant: 72),
+      resizeHandle.heightAnchor.constraint(equalToConstant: 12),
       footer.heightAnchor.constraint(equalToConstant: 32),
       spinner.widthAnchor.constraint(equalToConstant: 12),
       spinner.heightAnchor.constraint(equalToConstant: 12),
@@ -894,6 +945,9 @@ private struct StatusPin: Equatable {
 @main
 @MainActor
 class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
+  private static let panelHeightKey = "usagePanelHeight"
+  private static let panelDefaultHeight: CGFloat = 620
+  private static let panelMinimumHeight: CGFloat = 360
   private var engine: FlutterEngine?
   private var desktopChannel: FlutterMethodChannel?
   private var panel: UsagePanel?
@@ -973,6 +1027,7 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     usageController.onSettings = { [weak self] in self?.showSettings() }
     usageController.onUpdate = { [weak self] in self?.showUpdate() }
     usageController.onQuit = { NSApp.terminate(nil) }
+    usageController.onResize = { [weak self] height in self?.resizePanel(to: height) }
     self.usageController = usageController
     let panel = UsagePanel(
       contentRect: NSRect(x: 0, y: 0, width: 380, height: 620),
@@ -1281,7 +1336,10 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     let visible = screen.visibleFrame
     var frame = panel.frame
     frame.size.width = min(380, visible.width)
-    frame.size.height = min(620, visible.height - 12)
+    let stored = UserDefaults.standard.object(forKey: Self.panelHeightKey) as? Double
+    frame.size.height = min(
+      max(stored.map { CGFloat($0) } ?? Self.panelDefaultHeight, Self.panelMinimumHeight),
+      visible.height - 12)
     var centerX = visible.midX
     if let button = button, let window = button.window {
       let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
@@ -1294,6 +1352,19 @@ class AppDelegate: FlutterAppDelegate, NSWindowDelegate {
     frame.origin.x = max(visible.minX, min(centerX - frame.width / 2, visible.maxX - frame.width))
     frame.origin.y = visible.maxY - frame.height - 6
     panel.setFrame(frame, display: false)
+  }
+
+  private func resizePanel(to proposed: CGFloat) {
+    guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
+    var frame = panel.frame
+    // The top edge stays pinned under the menu bar; only the bottom edge follows the drag.
+    let limit = frame.maxY - screen.visibleFrame.minY - 6
+    let height = min(max(proposed, Self.panelMinimumHeight), limit)
+    guard height != frame.height else { return }
+    frame.origin.y = frame.maxY - height
+    frame.size.height = height
+    panel.setFrame(frame, display: true)
+    UserDefaults.standard.set(Double(height), forKey: Self.panelHeightKey)
   }
 
   private func hidePanel() {
