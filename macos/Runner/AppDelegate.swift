@@ -1601,13 +1601,17 @@ private enum StatusArtwork {
         if let fraction = layer.fraction {
           let track = NSRect(x: rowX, y: y + 3, width: barWidth, height: 4)
           trackColor?.setFill()
-          NSBezierPath(roundedRect: track, xRadius: 2, yRadius: 2).fill()
+          let trackPath = NSBezierPath(roundedRect: track, xRadius: 2, yRadius: 2)
+          trackPath.fill()
           if fraction > 0 {
+            // Square fill clipped to the track: rounded start, flat end, never past the track.
+            NSGraphicsContext.saveGraphicsState()
+            trackPath.addClip()
             color.setFill()
-            let filled = NSRect(
+            NSBezierPath(rect: NSRect(
               x: track.minX, y: track.minY,
-              width: track.width * CGFloat(fraction), height: track.height)
-            NSBezierPath(roundedRect: filled, xRadius: 2, yRadius: 2).fill()
+              width: track.width * CGFloat(fraction), height: track.height)).fill()
+            NSGraphicsContext.restoreGraphicsState()
           }
         } else {
           // Unknown values retain an outline, distinct from a valid zero's filled track.
